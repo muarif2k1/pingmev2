@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if is_own_profile %}
+        My Profile - ChatApp
+    {% else %}
+        {{ profile_user.username }}'s Profile - ChatApp
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Profile Header -->
+    <div class="col-12 mb-4">
+        <div class="card card-custom">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-3 text-center">
+                        <div class="position-relative d-inline-block">
+                            {% if profile_user.profile.profile_photo %}
+                                <img src="{{ profile_user.profile.profile_photo.url }}" 
+                                     class="rounded-circle border border-primary" 
+                                     style="width: 150px; height: 150px; object-fit: cover;" alt="Profile Photo">
+                            {% else %}
+                                <div class="rounded-circle border border-primary bg-primary d-flex align-items-center justify-content-center text-white" 
+                                     style="width: 150px; height: 150px; font-size: 3rem;">
+                                    {{ profile_user.username|first|upper }}
+                                </div>
+                            {% endif %}
+                            {% if profile_user.profile.online %}
+                                <span class="position-absolute bottom-0 end-0 p-2 bg-success border border-light rounded-circle" 
+                                      style="width: 30px; height: 30px;">
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h2 class="mb-2">
+                            {{ profile_user.get_full_name|default:profile_user.username }}
+                            {% if profile_user.profile.online %}
+                                <span class="badge bg-success ms-2">Online</span>
+                            {% endif %}
+                        </h2>
+                        <p class="text-muted mb-3">@{{ profile_user.username }}</p>
+                        
+                        {% if profile_user.profile.bio %}
+                            <p class="mb-3">{{ profile_user.profile.bio }}</p>
+                        {% endif %}
+                        
+                        <div class="row text-muted small">
+                            {% if profile_user.profile.location %}
+                                <div class="col-sm-6 mb-2">
+                                    <i class="fas fa-map-marker-alt me-2"></i>{{ profile_user.profile.location }}
+                                </div>
+                            {% endif %}
+                            {% if profile_user.profile.date_of_birth %}
+                                <div class="col-sm-6 mb-2">
+                                    <i class="fas fa-birthday-cake me-2"></i>{{ profile_user.profile.date_of_birth|date:"F d, Y" }}
+                                </div>
+                            {% endif %}
+                            <div class="col-sm-6 mb-2">
+                                <i class="fas fa-calendar-alt me-2"></i>Joined {{ profile_user.date_joined|date:"F Y" }}
+                            </div>
+                            <div class="col-sm-6 mb-2">
+                                <i class="fas fa-clock me-2"></i>
+                                {% if profile_user.profile.online %}
+                                    Online now
+                                {% else %}
+                                    Last seen {{ profile_user.profile.last_activity|timesince }} ago
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        {% if is_own_profile %}
+                            <button class="btn btn-custom mb-2" data-bs-toggle="modal" data-bs-target="#editProfileModal">
+                                <i class="fas fa-edit me-2"></i>Edit Profile
+                            </button>
+                        {% else %}
+                            <div class="d-grid gap-2">
+                                <!-- Friend Status -->
+                                <div id="friend-status">
+                                    {% if friendship_status == 'accepted' %}
+                                        <span class="badge bg-success mb-2">
+                                            <i class="fas fa-check me-1"></i>Friends
+                                        </span>
+                                    {% elif friendship_status == 'pending' %}
+                                        <span class="badge bg-warning mb-2">
+                                            <i class="fas fa-clock me-1"></i>Request Pending
+                                        </span>
+                                    {% elif friendship_status == 'rejected' %}
+                                        <button class="btn btn-outline-success btn-sm mb-2" 
+                                                onclick="sendFriendRequest('{{ profile_user.id }}')">
+                                            <i class="fas fa-user-plus me-1"></i>Add Friend
+                                        </button>
+                                    {% elif friendship_status == None %}
+                                        <button class="btn btn-outline-success btn-sm mb-2" 
+                                                onclick="sendFriendRequest('{{ profile_user.id }}')">
+                                            <i class="fas fa-user-plus me-1"></i>Add Friend
+                                        </button>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Action Buttons -->
+                                <a href="{% url 'private_chat' profile_user.id %}" class="btn btn-primary">
+                                    <i class="fas fa-comment me-2"></i>Send Message
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if is_own_profile %}
+<!-- Profile Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card card-custom text-center">
+            <div class="card-body">
+                <i class="fas fa-user-friends fa-2x text-primary mb-2"></i>
+                <h4 class="mb-0">{{ user.profile.get_friends.count }}</h4>
+                <small class="text-muted">Friends</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card card-custom text-center">
+            <div class="card-body">
+                <i class="fas fa-comments fa-2x text-info mb-2"></i>
+                <h4 class="mb-0">{{ user.private_chats_as_user1.count|add:user.private_chats_as_user2.count }}</h4>
+                <small class="text-muted">Chats</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card card-custom text-center">
+            <div class="card-body">
+                <i class="fas fa-door-open fa-2x text-warning mb-2"></i>
+                <h4 class="mb-0">{{ user.participants.count }}</h4>
+                <small class="text-muted">Rooms Joined</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card card-custom text-center">
+            <div class="card-body">
+                <i class="fas fa-calendar fa-2x text-success mb-2"></i>
+                <h4 class="mb-0">{{ user.date_joined|timesince }}</h4>
+                <small class="text-muted">Member Since</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Profile Modal -->
+<div class="modal fade" id="editProfileModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>Edit Profile
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-3">
+                            <div class="mb-3">
+                                <label class="form-label">Current Photo</label>
+                                <div class="d-block">
+                                    {% if user.profile.profile_photo %}
+                                        <img src="{{ user.profile.profile_photo.url }}" 
+                                             class="rounded-circle" style="width: 120px; height: 120px; object-fit: cover;" alt="Current Photo">
+                                    {% else %}
+                                        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white mx-auto" 
+                                             style="width: 120px; height: 120px; font-size: 2rem;">
+                                            {{ user.username|first|upper }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="id_profile_photo" class="form-label">New Photo</label>
+                                {{ form.profile_photo }}
+                                <div class="form-text">Upload a new profile photo</div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="id_date_of_birth" class="form-label">Date of Birth</label>
+                                {{ form.date_of_birth }}
+                            </div>
+                            <div class="mb-3">
+                                <label for="id_location" class="form-label">Location</label>
+                                {{ form.location }}
+                            </div>
+                            <div class="mb-3">
+                                <label for="id_bio" class="form-label">Bio</label>
+                                {{ form.bio }}
+                                <div class="form-text">Tell others about yourself</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-custom">
+                        <i class="fas fa-save me-2"></i>Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent Activity -->
+<div class="row">
+    <div class="col-12">
+        <div class="card card-custom">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    {% if is_own_profile %}Your Activity{% else %}{{ profile_user.username }}'s Activity{% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-primary"></div>
+                        <div class="timeline-content">
+                            <h6 class="mb-1">Joined ChatApp</h6>
+                            <small class="text-muted">{{ profile_user.date_joined|date:"F d, Y" }}</small>
+                        </div>
+                    </div>
+                    {% if profile_user.profile.last_activity %}
+                    <div class="timeline-item">
+                        <div class="timeline-marker bg-info"></div>
+                        <div class="timeline-content">
+                            <h6 class="mb-1">Last Activity</h6>
+                            <small class="text-muted">{{ profile_user.profile.last_activity|timesince }} ago</small>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e9ecef;
+    }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: 30px;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: -23px;
+        top: 5px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 3px solid #fff;
+        box-shadow: 0 0 0 3px #e9ecef;
+    }
+
+    .timeline-content {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function sendFriendRequest(userId) {
+    $.post('{% url "send_friend_request" %}', {
+        'user_id': userId
+    }, function(response) {
+        if (response.success) {
+            $('#friend-status').html(`
+                <span class="badge bg-warning mb-2">
+                    <i class="fas fa-clock me-1"></i>Request Sent
+                </span>
+            `);
+            showNotification('Friend request sent!', 'success');
+        } else {
+            showNotification('Error: ' + response.message, 'error');
+        }
+    });
+}
+
+function showNotification(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const notification = `
+        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+             style="top: 100px; right: 20px; z-index: 9999;" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    $('body').append(notification);
+    
+    setTimeout(function() {
+        $('.alert').fadeOut();
+    }, 3000);
+}
+</script>
+{% endblock %}

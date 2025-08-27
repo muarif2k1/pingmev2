@@ -1,0 +1,894 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ room.name }} - ChatApp{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card card-custom">
+            <!-- Room Header -->
+            <div class="card-header bg-transparent border-0">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <a href="{% url 'room_list' %}" class="btn btn-outline-secondary btn-sm me-3">
+                            <i class="fas fa-arrow-left"></i>
+                        </a>
+                        <div class="me-3">
+                            <!-- Fixed: Use conditional classes instead of inline CSS variables -->
+                            <div class="rounded-circle d-flex align-items-center justify-content-center text-white room-icon {% if room.is_private %}room-icon-private{% else %}room-icon-public{% endif %}" 
+                                 style="width: 50px; height: 50px;">
+                                <i class="fas {% if room.is_private %}fa-lock{% else %}fa-hashtag{% endif %} fs-4"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="mb-0">
+                                {{ room.name }}
+                                {% if room.is_private %}
+                                    <i class="fas fa-lock text-warning ms-2"></i>
+                                {% endif %}
+                            </h4>
+                            <p class="text-muted mb-0">
+                                {{ room.description|default:"No description" }}
+                            </p>
+                            <small class="text-muted">
+                                <i class="fas fa-user me-1"></i>Created by {{ room.creator.username }} • 
+                                <i class="fas fa-users me-1"></i>{{ room.participants.count }} members
+                            </small>
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#membersModal">
+                                <i class="fas fa-users me-2"></i>View Members
+                            </a></li>
+                            {% if participant.role == 'admin' or room.creator == user %}
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#inviteUsersModal">
+                                <i class="fas fa-user-plus me-2"></i>Invite Users
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#" onclick="deleteRoom()">
+                                <i class="fas fa-trash me-2"></i>Delete Room
+                            </a></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Container -->
+            <div class="card-body p-0">
+                <div id="messages-container" class="chat-container" style="height: 500px;">
+                    {% for message in chat_messages %}
+                        <div class="message-bubble {% if message.user == user %}message-own{% else %}message-other{% endif %}" 
+                             data-message-id="{{ message.id }}">
+                            {% if message.user != user %}
+                                <div class="d-flex align-items-center mb-1">
+                                    {% if message.user.profile.profile_photo %}
+                                        <img src="{{ message.user.profile.profile_photo.url }}" 
+                                             class="rounded-circle me-2" style="width: 20px; height: 20px;" alt="Avatar">
+                                    {% endif %}
+                                    <small class="text-muted fw-bold">{{ message.user.username }}</small>
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Message Content -->
+                            <div class="message-content">
+                                {% if message.message_type == 'TEXT' %}
+                                    {{ message.content }}
+                                {% elif message.message_type == 'IMAGE' %}
+                                    <div class="message-image">
+                                        <img src="{{ message.image.url }}" class="img-fluid rounded" 
+                                             style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                                             onclick="showImageModal('{{ message.image.url }}', '{{ message.user.username }}')" alt="Image">
+                                        {% if message.content %}
+                                            <div class="mt-2">{{ message.content }}</div>
+                                        {% endif %}
+                                    </div>
+                                {% elif message.message_type == 'FILE' %}
+                                    <div class="message-file">
+                                        <i class="fas fa-file me-2"></i>
+                                        <a href="{{ message.file.url }}" download class="text-decoration-none">
+                                            {{ message.file.name|slice:"13:" }}
+                                        </a>
+                                        <small class="text-muted d-block">
+                                            {% load humanize %}
+                                            {{ message.file.size|filesizeformat }}
+                                        </small>
+                                        {% if message.content %}
+                                            <div class="mt-2">{{ message.content }}</div>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <small class="text-muted message-time">
+                                {{ message.timestamp|date:"H:i" }}
+                                {% if message.edited %}
+                                    <i class="fas fa-edit ms-1" title="Edited"></i>
+                                {% endif %}
+                            </small>
+                            {% if message.user == user %}
+                                <div class="message-actions" style="display: none;">
+                                    {% if message.message_type == 'TEXT' %}
+                                        <button class="btn btn-xs btn-outline-secondary me-1" 
+                                                onclick="editMessage('{{ message.id }}', '{{ message.content|escapejs }}')">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    {% endif %}
+                                    <button class="btn btn-xs btn-outline-danger" 
+                                            onclick="deleteMessage('{{ message.id }}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% empty %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No messages yet. Start the conversation!</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Message Input -->
+            <div class="card-footer bg-transparent">
+                <form id="message-form" class="d-flex align-items-center" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="type" value="room">
+                    <input type="hidden" name="room_id" value="{{ room.id }}">
+                    
+                    <!-- File attachments (hidden inputs) -->
+                    <input type="file" id="image-input" name="image" accept="image/*" style="display: none;" onchange="handleFileSelect('image')">
+                    <input type="file" id="file-input" name="file" style="display: none;" onchange="handleFileSelect('file')">
+                    
+                    <!-- Attachment buttons -->
+                    <div class="me-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('image-input').click()" title="Send Image">
+                            <i class="fas fa-image"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" onclick="document.getElementById('file-input').click()" title="Send File">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- File preview area -->
+                    <div id="file-preview" class="me-2" style="display: none;">
+                        <div class="d-flex align-items-center bg-light rounded p-2">
+                            <span id="file-name" class="small me-2"></span>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearFileSelection()">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-grow-1 me-2">
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="content" 
+                                   placeholder="Type your message..." autocomplete="off">
+                            <button type="submit" class="btn btn-custom">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Members Modal -->
+<div class="modal fade" id="membersModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-users me-2"></i>Room Members ({{ room.participants.count }})
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                {% for participant in room.participants.all %}
+                <div class="d-flex align-items-center mb-3">
+                    <div class="me-3">
+                        {% if participant.user.profile.profile_photo %}
+                            <img src="{{ participant.user.profile.profile_photo.url }}" 
+                                 class="user-avatar" alt="Avatar">
+                        {% else %}
+                            <div class="user-avatar bg-primary d-flex align-items-center justify-content-center text-white">
+                                {{ participant.user.username|first|upper }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">
+                            {{ participant.user.get_full_name|default:participant.user.username }}
+                            {% if participant.user == room.creator %}
+                                <span class="badge bg-success ms-2">Creator</span>
+                            {% elif participant.role == 'admin' %}
+                                <span class="badge bg-primary ms-2">Admin</span>
+                            {% elif participant.role == 'moderator' %}
+                                <span class="badge bg-warning ms-2">Moderator</span>
+                            {% endif %}
+                        </h6>
+                        <small class="text-muted">
+                            {% if participant.user.profile.online %}
+                                <i class="fas fa-circle text-success me-1"></i>Online
+                            {% else %}
+                                Last seen {{ participant.user.profile.last_activity|timesince }} ago
+                            {% endif %}
+                        </small>
+                    </div>
+                    {% if participant.user != user %}
+                        <a href="{% url 'private_chat' participant.user.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-comment"></i>
+                        </a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invite Users Modal -->
+<div class="modal fade" id="inviteUsersModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-user-plus me-2"></i>Invite Users to {{ room.name }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Search Users -->
+                <div class="mb-4">
+                    <div class="input-group">
+                        <input type="text" id="user-search-input" class="form-control" placeholder="Search users by username or email...">
+                        <button type="button" class="btn btn-outline-secondary" onclick="searchUsers()">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Search Results -->
+                <div id="search-results" class="mb-4">
+                    <p class="text-muted text-center">Search for users to invite them to this room.</p>
+                </div>
+                
+                <!-- Selected Users -->
+                <div id="selected-users" class="mb-3" style="display: none;">
+                    <h6>Selected Users:</h6>
+                    <div id="selected-users-list" class="d-flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="sendInvitations()" id="send-invites-btn" disabled>
+                    Send Invitations
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalTitle">Image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalImage" src="" class="img-fluid" alt="Full size image">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Message Modal -->
+<div class="modal fade" id="editMessageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Message</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-message-form">
+                    <input type="hidden" id="edit-message-id" name="message_id">
+                    <div class="mb-3">
+                        <textarea class="form-control" id="edit-content" name="content" rows="3" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveEditedMessage()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .message-bubble {
+        position: relative;
+    }
+
+    .message-bubble:hover .message-actions {
+        display: block !important;
+    }
+
+    .message-actions {
+        position: absolute;
+        top: 5px;
+        right: 10px;
+    }
+
+    .btn-xs {
+        padding: 2px 5px;
+        font-size: 0.75rem;
+    }
+
+    #messages-container {
+        scroll-behavior: smooth;
+    }
+
+    /* Room icon styles */
+    .room-icon-private {
+        background-color: #ffc107 !important;
+    }
+
+    .room-icon-public {
+        background-color: #0d6efd !important;
+    }
+    
+    /* File preview styles */
+    .message-image img {
+        border-radius: 8px;
+    }
+    
+    .message-file {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 8px;
+        border-left: 4px solid #0d6efd;
+    }
+    
+    /* User selection styles */
+    .user-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .user-card:hover {
+        background-color: #f8f9fa;
+        border-color: #0d6efd;
+    }
+    
+    .user-card.selected {
+        background-color: #e3f2fd;
+        border-color: #0d6efd;
+    }
+    
+    .selected-user-badge {
+        background-color: #0d6efd;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 0.875rem;
+        display: inline-flex;
+        align-items: center;
+    }
+    
+    .selected-user-badge .remove-btn {
+        background: none;
+        border: none;
+        color: white;
+        margin-left: 5px;
+        cursor: pointer;
+        padding: 0;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+    
+    .selected-user-badge .remove-btn:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let isAtBottom = true;
+let selectedUsers = new Set();
+
+$(document).ready(function() {
+    // Scroll to bottom initially
+    scrollToBottom();
+    
+    // Check if user is at bottom when scrolling
+    $('#messages-container').on('scroll', function() {
+        const container = $(this)[0];
+        isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 1;
+    });
+    
+    // Handle message form submission
+    $('#message-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const content = formData.get('content');
+        const hasFile = formData.get('image') && formData.get('image').size > 0;
+        const hasAttachment = formData.get('file') && formData.get('file').size > 0;
+        
+        if (!content.trim() && !hasFile && !hasAttachment) {
+            return;
+        }
+        
+        // Show loading state
+        const submitBtn = $(this).find('button[type="submit"]');
+        const originalText = submitBtn.html();
+        submitBtn.html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
+        
+        $.ajax({
+            url: '{% url "send_message" %}',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    // Add message to UI
+                    addMessageToUI(response, true);
+                    // Clear form
+                    $('#message-form input[name="content"]').val('');
+                    clearFileSelection();
+                } else {
+                    alert('Error sending message: ' + response.message);
+                }
+            },
+            error: function() {
+                alert('Error sending message. Please try again.');
+            },
+            complete: function() {
+                // Reset button state
+                submitBtn.html(originalText).prop('disabled', false);
+                // Focus back to input
+                $('#message-form input[name="content"]').focus();
+            }
+        });
+    });
+    
+    // Auto-refresh messages every 5 seconds
+    setInterval(refreshMessages, 5000);
+    
+    // User search on enter
+    $('#user-search-input').on('keypress', function(e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            searchUsers();
+        }
+    });
+});
+
+function handleFileSelect(type) {
+    const input = document.getElementById(type + '-input');
+    const file = input.files[0];
+    
+    if (file) {
+        // Clear the other input
+        const otherType = type === 'image' ? 'file' : 'image';
+        document.getElementById(otherType + '-input').value = '';
+        
+        // Show preview
+        const preview = document.getElementById('file-preview');
+        const fileName = document.getElementById('file-name');
+        
+        if (type === 'image') {
+            fileName.innerHTML = `<i class="fas fa-image me-1"></i>${file.name}`;
+        } else {
+            fileName.innerHTML = `<i class="fas fa-file me-1"></i>${file.name}`;
+        }
+        
+        preview.style.display = 'block';
+    }
+}
+
+function clearFileSelection() {
+    document.getElementById('image-input').value = '';
+    document.getElementById('file-input').value = '';
+    document.getElementById('file-preview').style.display = 'none';
+}
+
+function showImageModal(imageUrl, username) {
+    document.getElementById('modalImage').src = imageUrl;
+    document.getElementById('imageModalTitle').textContent = `Image from ${username}`;
+    new bootstrap.Modal(document.getElementById('imageModal')).show();
+}
+
+function addMessageToUI(messageData, isOwn) {
+    const messageClass = isOwn ? 'message-own' : 'message-other';
+    const userInfo = isOwn ? '' : `
+        <div class="d-flex align-items-center mb-1">
+            <small class="text-muted fw-bold">${messageData.username}</small>
+        </div>
+    `;
+    
+    let messageContent = '';
+    if (messageData.message_type === 'IMAGE') {
+        messageContent = `
+            <div class="message-image">
+                <img src="${messageData.file_url}" class="img-fluid rounded" 
+                     style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                     onclick="showImageModal('${messageData.file_url}', '${messageData.username}')" alt="Image">
+                ${messageData.content ? `<div class="mt-2">${messageData.content}</div>` : ''}
+            </div>
+        `;
+    } else if (messageData.message_type === 'FILE') {
+        messageContent = `
+            <div class="message-file">
+                <i class="fas fa-file me-2"></i>
+                <a href="${messageData.file_url}" download class="text-decoration-none">
+                    ${messageData.file_name}
+                </a>
+                ${messageData.content ? `<div class="mt-2">${messageData.content}</div>` : ''}
+            </div>
+        `;
+    } else {
+        messageContent = messageData.content;
+    }
+    
+    const messageActions = isOwn ? `
+        <div class="message-actions" style="display: none;">
+            ${messageData.message_type === 'TEXT' ? `
+                <button class="btn btn-xs btn-outline-secondary me-1" 
+                        onclick="editMessage('${messageData.message_id}', '${messageData.content ? messageData.content.replace(/'/g, "\\'") : ''}')">
+                    <i class="fas fa-edit"></i>
+                </button>
+            ` : ''}
+            <button class="btn btn-xs btn-outline-danger" 
+                    onclick="deleteMessage('${messageData.message_id}')">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    ` : '';
+    
+    const messageHTML = `
+        <div class="message-bubble ${messageClass}" data-message-id="${messageData.message_id}">
+            ${userInfo}
+            <div class="message-content">${messageContent}</div>
+            <small class="text-muted message-time">${messageData.timestamp}</small>
+            ${messageActions}
+        </div>
+    `;
+    
+    $('#messages-container').append(messageHTML);
+    
+    if (isAtBottom) {
+        scrollToBottom();
+    }
+}
+
+function scrollToBottom() {
+    const container = $('#messages-container')[0];
+    container.scrollTop = container.scrollHeight;
+}
+
+function refreshMessages() {
+    $.get('{% url "get_room_messages" room.id %}', function(data) {
+        const currentMessages = $('#messages-container .message-bubble').map(function() {
+            return $(this).data('message-id');
+        }).get();
+        
+        data.messages.forEach(function(message) {
+            if (!currentMessages.includes(message.id)) {
+                addMessageToUI({
+                    message_id: message.id,
+                    content: message.content,
+                    username: message.username,
+                    timestamp: new Date(message.timestamp).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }),
+                    message_type: message.message_type,
+                    file_url: message.file_url,
+                    file_name: message.file_name
+                }, message.is_own);
+            }
+        });
+    });
+}
+
+// User invitation functions
+function searchUsers() {
+    const query = $('#user-search-input').val().trim();
+    if (!query) {
+        $('#search-results').html('<p class="text-muted text-center">Search for users to invite them to this room.</p>');
+        return;
+    }
+    
+    $.get('{% url "search_users_for_invite" %}', {
+        q: query,
+        room_id: '{{ room.id }}'
+    }, function(data) {
+        let html = '';
+        if (data.users.length === 0) {
+            html = '<p class="text-muted text-center">No users found.</p>';
+        } else {
+            data.users.forEach(function(user) {
+                const isSelected = selectedUsers.has(user.id);
+                const isAlreadyMember = user.is_member;
+                
+                html += `
+                    <div class="user-card ${isSelected ? 'selected' : ''} ${isAlreadyMember ? 'opacity-50' : ''}" 
+                         data-user-id="${user.id}" onclick="${isAlreadyMember ? '' : 'toggleUserSelection(' + user.id + ', \'' + user.username + '\')'}">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                ${user.profile_photo ? 
+                                    `<img src="${user.profile_photo}" class="rounded-circle" style="width: 40px; height: 40px;" alt="Avatar">` :
+                                    `<div class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white" style="width: 40px; height: 40px;">
+                                        ${user.username.charAt(0).toUpperCase()}
+                                    </div>`
+                                }
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-0">${user.full_name || user.username}</h6>
+                                <small class="text-muted">@${user.username}</small>
+                                ${isAlreadyMember ? '<small class="badge bg-success ms-2">Already a member</small>' : ''}
+                            </div>
+                            ${!isAlreadyMember && isSelected ? '<i class="fas fa-check text-primary"></i>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        $('#search-results').html(html);
+    });
+}
+
+function toggleUserSelection(userId, username) {
+    if (selectedUsers.has(userId)) {
+        selectedUsers.delete(userId);
+    } else {
+        selectedUsers.add(userId);
+    }
+    
+    updateSelectedUsersDisplay();
+    updateSendButton();
+    
+    // Update visual state
+    $(`.user-card[data-user-id="${userId}"]`).toggleClass('selected');
+    $(`.user-card[data-user-id="${userId}"] i`).toggleClass('fas fa-check text-primary');
+}
+
+function removeSelectedUser(userId) {
+    selectedUsers.delete(userId);
+    updateSelectedUsersDisplay();
+    updateSendButton();
+    
+    // Update visual state
+    $(`.user-card[data-user-id="${userId}"]`).removeClass('selected');
+    $(`.user-card[data-user-id="${userId}"] i`).removeClass('fas fa-check text-primary');
+}
+
+function updateSelectedUsersDisplay() {
+    if (selectedUsers.size === 0) {
+        $('#selected-users').hide();
+        return;
+    }
+    
+    $('#selected-users').show();
+    let html = '';
+    
+    // Get user data from the search results
+    selectedUsers.forEach(function(userId) {
+        const userCard = $(`.user-card[data-user-id="${userId}"]`);
+        const username = userCard.find('h6').text();
+        
+        html += `
+            <div class="selected-user-badge">
+                ${username}
+                <button type="button" class="remove-btn" onclick="removeSelectedUser(${userId})">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    });
+    
+    $('#selected-users-list').html(html);
+}
+
+function updateSendButton() {
+    const btn = $('#send-invites-btn');
+    if (selectedUsers.size > 0) {
+        btn.prop('disabled', false);
+        btn.text(`Send ${selectedUsers.size} Invitation${selectedUsers.size > 1 ? 's' : ''}`);
+    } else {
+        btn.prop('disabled', true);
+        btn.text('Send Invitations');
+    }
+}
+
+function sendInvitations() {
+    if (selectedUsers.size === 0) return;
+    
+    const btn = $('#send-invites-btn');
+    const originalText = btn.text();
+    btn.html('<i class="fas fa-spinner fa-spin"></i> Sending...').prop('disabled', true);
+    
+    // Method 1: Use FormData to properly send arrays
+    const formData = new FormData();
+    formData.append('room_id', '{{ room.id }}');
+    formData.append('csrfmiddlewaretoken', $('[name=csrfmiddlewaretoken]').val());
+    
+    // Add each user ID as a separate parameter
+    selectedUsers.forEach(userId => {
+        formData.append('user_ids', userId);
+    });
+    
+    $.ajax({
+        url: '{% url "invite_users_to_room" %}',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            if (response.success) {
+                alert(`Successfully sent ${response.sent_count} invitation${response.sent_count > 1 ? 's' : ''}!`);
+                
+                // Clear selections and close modal
+                selectedUsers.clear();
+                updateSelectedUsersDisplay();
+                updateSendButton();
+                $('#user-search-input').val('');
+                $('#search-results').html('<p class="text-muted text-center">Search for users to invite them to this room.</p>');
+                $('#inviteUsersModal').modal('hide');
+                
+                // Optionally refresh the page to show new members
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                alert('Error sending invitations: ' + response.message);
+                console.log('Debug info:', response.debug_info);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.log('AJAX Error:', xhr.responseText);
+            alert('Error sending invitations. Please try again.');
+        },
+        complete: function() {
+            btn.text(originalText).prop('disabled', false);
+        }
+    });
+}
+
+// Alternative method using traditional POST with manual parameter building
+function sendInvitationsAlternative() {
+    if (selectedUsers.size === 0) return;
+    
+    const btn = $('#send-invites-btn');
+    const originalText = btn.text();
+    btn.html('<i class="fas fa-spinner fa-spin"></i> Sending...').prop('disabled', true);
+    
+    // Build the data manually to ensure proper array handling
+    let postData = 'room_id={{ room.id }}&csrfmiddlewaretoken=' + encodeURIComponent($('[name=csrfmiddlewaretoken]').val());
+    
+    selectedUsers.forEach(userId => {
+        postData += '&user_ids=' + encodeURIComponent(userId);
+    });
+    
+    $.ajax({
+        url: '{% url "invite_users_to_room" %}',
+        type: 'POST',
+        data: postData,
+        contentType: 'application/x-www-form-urlencoded',
+        success: function(response) {
+            if (response.success) {
+                alert(`Successfully sent ${response.sent_count} invitation${response.sent_count > 1 ? 's' : ''}!`);
+                
+                // Clear selections and close modal
+                selectedUsers.clear();
+                updateSelectedUsersDisplay();
+                updateSendButton();
+                $('#user-search-input').val('');
+                $('#search-results').html('<p class="text-muted text-center">Search for users to invite them to this room.</p>');
+                $('#inviteUsersModal').modal('hide');
+                
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                alert('Error sending invitations: ' + response.message);
+                console.log('Debug info:', response.debug_info);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.log('AJAX Error:', xhr.responseText);
+            alert('Error sending invitations. Please try again.');
+        },
+        complete: function() {
+            btn.text(originalText).prop('disabled', false);
+        }
+    });
+}
+
+
+
+function editMessage(messageId, currentContent) {
+    $('#edit-message-id').val(messageId);
+    $('#edit-content').val(currentContent);
+    $('#editMessageModal').modal('show');
+}
+
+function saveEditedMessage() {
+    const messageId = $('#edit-message-id').val();
+    const newContent = $('#edit-content').val().trim();
+    
+    if (!newContent) {
+        alert('Message content cannot be empty');
+        return;
+    }
+    
+    $.post('{% url "edit_message" %}', {
+        'message_id': messageId,
+        'content': newContent
+    }, function(response) {
+        if (response.success) {
+            // Update message in UI
+            const messageElement = $(`.message-bubble[data-message-id="${messageId}"]`);
+            messageElement.find('.message-content').text(response.content);
+            messageElement.find('.message-time').html(`${response.edited_at} <i class="fas fa-edit ms-1" title="Edited"></i>`);
+            
+            $('#editMessageModal').modal('hide');
+        } else {
+            alert('Error editing message: ' + response.message);
+        }
+    });
+}
+
+function deleteMessage(messageId) {
+    if (confirm('Are you sure you want to delete this message?')) {
+        $.post('{% url "delete_message" %}', {
+            'message_id': messageId
+        }, function(response) {
+            if (response.success) {
+                $(`.message-bubble[data-message-id="${messageId}"]`).fadeOut(300, function() {
+                    $(this).remove();
+                });
+            } else {
+                alert('Error deleting message: ' + response.message);
+            }
+        });
+    }
+}
+
+function deleteRoom() {
+    if (confirm('Are you sure you want to delete this room? This action cannot be undone.')) {
+        // Implementation for room deletion
+        alert('Room deletion functionality would be implemented here');
+    }
+}
+
+// Enter key to send message
+$(document).on('keypress', '#message-form input[name="content"]', function(e) {
+    if (e.which === 13) {
+        e.preventDefault();
+        $('#message-form').submit();
+    }
+});
+</script>
+{% endblock %}

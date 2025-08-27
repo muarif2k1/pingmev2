@@ -1,0 +1,215 @@
+{% extends 'base.html' %}
+
+{% block title %}My Invitations - ChatApp{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <h2><i class="fas fa-envelope me-2"></i>Room Invitations</h2>
+            <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+            </a>
+        </div>
+
+        {% if invitations %}
+            <div class="row">
+                {% for invitation in invitations %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 invitation-card" id="invitation-{{ invitation.id }}">
+                        <div class="card-header bg-primary text-white">
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center text-white room-icon-primary" 
+                                         style="width: 40px; height: 40px;">
+                                        <i class="fas {% if invitation.room.is_private %}fa-lock{% else %}fa-hashtag{% endif %}"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h6 class="mb-1">{{ invitation.room.name }}</h6>
+                                    <small class="opacity-75">
+                                        {% if invitation.room.is_private %}Private Room{% else %}Public Room{% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Invited by:</small>
+                                <div class="d-flex align-items-center">
+                                    {% if invitation.invited_by.profile.profile_photo %}
+                                        <img src="{{ invitation.invited_by.profile.profile_photo.url }}" 
+                                             class="rounded-circle me-2" style="width: 24px; height: 24px;" alt="Avatar">
+                                    {% else %}
+                                        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white me-2" 
+                                             style="width: 24px; height: 24px; font-size: 0.75rem;">
+                                            {{ invitation.invited_by.username|first|upper }}
+                                        </div>
+                                    {% endif %}
+                                    <span class="fw-bold">{{ invitation.invited_by.get_full_name|default:invitation.invited_by.username }}</span>
+                                </div>
+                            </div>
+                            
+                            {% if invitation.room.description %}
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Room Description:</small>
+                                <p class="small mb-0">{{ invitation.room.description|truncatewords:20 }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if invitation.message %}
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Personal Message:</small>
+                                <div class="bg-light p-2 rounded">
+                                    <p class="small mb-0 fst-italic">"{{ invitation.message }}"</p>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="mb-3">
+                                <small class="text-muted d-block">Room Info:</small>
+                                <div class="d-flex justify-content-between text-small">
+                                    <span><i class="fas fa-users me-1"></i>{{ invitation.room.participants.count }} members</span>
+                                    <span><i class="fas fa-calendar me-1"></i>{{ invitation.created_at|date:"M d, Y" }}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="text-muted small mb-3">
+                                <i class="fas fa-clock me-1"></i>
+                                Expires {{ invitation.expires_at|timeuntil }} from now
+                            </div>
+                        </div>
+                        
+                        <div class="card-footer bg-transparent">
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-success" 
+                                        onclick="respondToInvitation('{{ invitation.id }}', 'accept')">
+                                    <i class="fas fa-check me-1"></i>Accept Invitation
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" 
+                                        onclick="respondToInvitation('{{ invitation.id }}', 'reject')">
+                                    <i class="fas fa-times me-1"></i>Decline
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <div class="mb-4">
+                    <i class="fas fa-inbox fa-4x text-muted"></i>
+                </div>
+                <h4 class="text-muted mb-3">No Invitations</h4>
+                <p class="text-muted mb-4">You don't have any pending room invitations at the moment.</p>
+                <a href="{% url 'room_list' %}" class="btn btn-primary">
+                    <i class="fas fa-search me-1"></i>Browse Rooms
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .invitation-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .invitation-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .room-icon-primary {
+        background-color: #0d6efd;
+    }
+    
+    .card-header {
+        border-bottom: none;
+    }
+    
+    .responding {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function respondToInvitation(invitationId, action) {
+    const card = document.getElementById(`invitation-${invitationId}`);
+    const buttons = card.querySelectorAll('button');
+    
+    // Add loading state
+    card.classList.add('responding');
+    buttons.forEach(btn => {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing...';
+        btn.disabled = true;
+        btn.setAttribute('data-original', originalText);
+    });
+    
+    $.post('{% url "respond_to_invitation" %}', {
+        invitation_id: invitationId,
+        action: action
+    }, function(response) {
+        if (response.success) {
+            if (action === 'accept') {
+                // Show success message
+                card.innerHTML = `
+                    <div class="card-body text-center py-4">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h5 class="text-success">Invitation Accepted!</h5>
+                        <p class="text-muted mb-3">You've been added to the room successfully.</p>
+                        <a href="{% url 'room_list' %}" class="btn btn-primary">
+                            <i class="fas fa-comments me-1"></i>Go to Rooms
+                        </a>
+                    </div>
+                `;
+            } else {
+                // Fade out rejected invitation
+                card.style.transition = 'all 0.5s ease';
+                card.style.opacity = '0';
+                card.style.transform = 'scale(0.8)';
+                
+                setTimeout(() => {
+                    card.remove();
+                    
+                    // Check if no invitations left
+                    if (document.querySelectorAll('.invitation-card').length === 0) {
+                        location.reload();
+                    }
+                }, 500);
+            }
+        } else {
+            alert('Error: ' + response.message);
+            
+            // Restore buttons
+            card.classList.remove('responding');
+            buttons.forEach(btn => {
+                btn.innerHTML = btn.getAttribute('data-original');
+                btn.disabled = false;
+                btn.removeAttribute('data-original');
+            });
+        }
+    }).fail(function() {
+        alert('Error processing invitation. Please try again.');
+        
+        // Restore buttons
+        card.classList.remove('responding');
+        buttons.forEach(btn => {
+            btn.innerHTML = btn.getAttribute('data-original');
+            btn.disabled = false;
+            btn.removeAttribute('data-original');
+        });
+    });
+}
+</script>
+{% endblock %}

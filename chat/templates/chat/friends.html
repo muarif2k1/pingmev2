@@ -1,0 +1,305 @@
+{% extends 'base.html' %}
+
+{% block title %}Friends - ChatApp{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Page Header -->
+    <div class="col-12 mb-4">
+        <div class="card card-custom">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="mb-1">
+                            <i class="fas fa-user-friends me-2"></i>Friends
+                        </h2>
+                        <p class="text-muted mb-0">Manage your friends and friend requests</p>
+                    </div>
+                    <a href="{% url 'search_users' %}" class="btn btn-custom">
+                        <i class="fas fa-user-plus me-2"></i>Find Friends
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Friends List -->
+    <div class="col-lg-8 mb-4">
+        <div class="card card-custom">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>Your Friends ({{ friends.count }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if friends %}
+                    <div class="row">
+                        {% for friend in friends %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="position-relative me-3">
+                                            {% if friend.profile_photo %}
+                                                <img src="{{ friend.profile_photo.url }}" 
+                                                     class="user-avatar" alt="Avatar">
+                                            {% else %}
+                                                <div class="user-avatar bg-primary d-flex align-items-center justify-content-center text-white">
+                                                    {{ friend.user.username|first|upper }}
+                                                </div>
+                                            {% endif %}
+                                            {% if friend.online %}
+                                                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle">
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">
+                                                <a href="{% url 'user_profile' friend.user.id %}" 
+                                                   class="text-decoration-none">
+                                                    {{ friend.user.get_full_name|default:friend.user.username }}
+                                                </a>
+                                            </h6>
+                                            <p class="text-muted small mb-2">
+                                                {% if friend.bio %}
+                                                    {{ friend.bio|truncatechars:50 }}
+                                                {% else %}
+                                                    No bio available
+                                                {% endif %}
+                                            </p>
+                                            <small class="text-muted">
+                                                {% if friend.online %}
+                                                    <i class="fas fa-circle text-success me-1"></i>Online
+                                                {% else %}
+                                                    Last seen {{ friend.last_activity|timesince }} ago
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3 d-flex justify-content-between">
+                                        <a href="{% url 'private_chat' friend.user.id %}" 
+                                           class="btn btn-sm btn-primary">
+                                            <i class="fas fa-comment me-1"></i>Chat
+                                        </a>
+                                        <a href="{% url 'user_profile' friend.user.id %}" 
+                                           class="btn btn-sm btn-outline-secondary">
+                                            <i class="fas fa-user me-1"></i>Profile
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-user-friends fa-3x text-muted mb-3"></i>
+                        <p class="text-muted mb-3">You don't have any friends yet</p>
+                        <a href="{% url 'search_users' %}" class="btn btn-primary">
+                            <i class="fas fa-search me-2"></i>Find Friends
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Friend Requests -->
+    <div class="col-lg-4">
+        <!-- Received Requests -->
+        <div class="card card-custom mb-4">
+            <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-inbox me-2"></i>Received Requests
+                </h6>
+                {% if pending_received %}
+                    <span class="badge bg-warning">{{ pending_received.count }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if pending_received %}
+                    {% for friendship in pending_received %}
+                    <div class="d-flex align-items-center mb-3 p-2 border rounded friend-request-item">
+                        <div class="me-3">
+                            {% if friendship.from_user.profile_photo %}
+                                <img src="{{ friendship.from_user.profile_photo.url }}" 
+                                     class="rounded-circle" style="width: 35px; height: 35px;" alt="Avatar">
+                            {% else %}
+                                <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white" 
+                                     style="width: 35px; height: 35px; font-size: 14px;">
+                                    {{ friendship.from_user.user.username|first|upper }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1 small">
+                                {{ friendship.from_user.user.get_full_name|default:friendship.from_user.user.username }}
+                            </h6>
+                            <small class="text-muted">{{ friendship.created_at|timesince }} ago</small>
+                        </div>
+                        <div class="btn-group-vertical btn-group-sm">
+                            <button class="btn btn-success btn-sm friend-request-btn" 
+                                    data-friendship-id="{{ friendship.id }}" 
+                                    data-action="accept"
+                                    style="font-size: 0.7rem; padding: 2px 5px;">
+                                <i class="fas fa-check"></i>
+                            </button>
+                            <button class="btn btn-danger btn-sm mt-1 friend-request-btn" 
+                                    data-friendship-id="{{ friendship.id }}" 
+                                    data-action="reject"
+                                    style="font-size: 0.7rem; padding: 2px 5px;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-3 empty-state">
+                        <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                        <p class="text-muted small mb-0">No pending requests</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Sent Requests -->
+        <div class="card card-custom">
+            <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="fas fa-paper-plane me-2"></i>Sent Requests
+                </h6>
+                {% if pending_sent %}
+                    <span class="badge bg-info">{{ pending_sent.count }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if pending_sent %}
+                    {% for friendship in pending_sent %}
+                    <div class="d-flex align-items-center mb-3 p-2 border rounded">
+                        <div class="me-3">
+                            {% if friendship.to_user.profile_photo %}
+                                <img src="{{ friendship.to_user.profile_photo.url }}" 
+                                     class="rounded-circle" style="width: 35px; height: 35px;" alt="Avatar">
+                            {% else %}
+                                <div class="rounded-circle bg-info d-flex align-items-center justify-content-center text-white" 
+                                     style="width: 35px; height: 35px; font-size: 14px;">
+                                    {{ friendship.to_user.user.username|first|upper }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1 small">
+                                {{ friendship.to_user.user.get_full_name|default:friendship.to_user.user.username }}
+                            </h6>
+                            <small class="text-muted">{{ friendship.created_at|timesince }} ago</small>
+                        </div>
+                        <span class="badge bg-warning">Pending</span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-paper-plane fa-2x text-muted mb-2"></i>
+                        <p class="text-muted small mb-0">No sent requests</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pass friends-specific data to JavaScript -->
+<script id="friends-data" type="application/json">
+{
+    "friendRequestUrl": "{% url 'respond_friend_request' %}"
+}
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Get friends-specific data
+const friendsData = JSON.parse(document.getElementById('friends-data').textContent);
+
+// Handle friend request responses
+$(document).on('click', '.friend-request-btn', function() {
+    const button = $(this);
+    const friendshipId = button.data('friendship-id');
+    const action = button.data('action');
+    
+    if (friendshipId && action) {
+        respondToFriendRequest(button, friendshipId, action);
+    }
+});
+
+function respondToFriendRequest(button, friendshipId, action) {
+    const originalHTML = button.html();
+    
+    // Show loading state
+    button.html('<i class="fas fa-spinner fa-spin"></i>');
+    button.prop('disabled', true);
+    
+    $.post(friendsData.friendRequestUrl, {
+        'friendship_id': friendshipId,
+        'action': action
+    })
+    .done(function(response) {
+        if (response.success) {
+            // Remove the request from UI with animation
+            const requestItem = button.closest('.friend-request-item');
+            requestItem.fadeOut(300, function() {
+                requestItem.remove();
+                
+                // Check if no more requests
+                const container = button.closest('.card-body');
+                const remainingItems = container.find('.friend-request-item');
+                
+                if (remainingItems.length === 0) {
+                    const emptyMessage = `
+                        <div class="text-center py-3 empty-state">
+                            <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                            <p class="text-muted small mb-0">No pending requests</p>
+                        </div>
+                    `;
+                    container.html(emptyMessage);
+                }
+            });
+            
+            // Show success message
+            const actionText = action === 'accept' ? 'accepted' : 'rejected';
+            showNotification(`Friend request ${actionText}!`, 'success');
+        } else {
+            // Reset button state
+            button.html(originalHTML);
+            button.prop('disabled', false);
+            showNotification('Error: ' + response.message, 'error');
+        }
+    })
+    .fail(function() {
+        // Reset button state
+        button.html(originalHTML);
+        button.prop('disabled', false);
+        showNotification('Network error. Please try again.', 'error');
+    });
+}
+
+function showNotification(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const notification = `
+        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+             style="top: 100px; right: 20px; z-index: 9999;" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    $('body').append(notification);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(function() {
+        $('.alert').fadeOut();
+    }, 3000);
+}
+</script>
+{% endblock %}

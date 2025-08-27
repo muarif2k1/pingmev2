@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+{% load chat_filters %}
+{% block title %}Dashboard - ChatApp{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Welcome Section -->
+    <div class="col-12 mb-4">
+        <div class="card card-custom">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="mb-2">Welcome back, {{ user.first_name|default:user.username }}!</h1>
+                        <p class="text-muted mb-0">
+                            <i class="fas fa-clock me-2"></i>Last activity: {{ user.profile.last_activity|timesince }} ago
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        {% if user.profile.profile_photo %}
+                            <img src="{{ user.profile.profile_photo.url }}" class="rounded-circle" 
+                                 style="width: 80px; height: 80px; object-fit: cover;" alt="Profile">
+                        {% else %}
+                            <i class="fas fa-user-circle fa-5x text-primary"></i>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Private Chats -->
+    <div class="col-lg-6 mb-4">
+        <div class="card card-custom h-100">
+            <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-comments me-2"></i>Recent Chats
+                </h5>
+                <a href="{% url 'search_users' %}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-plus"></i> New Chat
+                </a>
+            </div>
+            <div class="card-body">
+                {% if private_chats %}
+                    {% for chat in private_chats %}
+                        {% with other_user=chat|get_other_user:user %}
+                        <div class="d-flex align-items-center mb-3 p-2 rounded hover-bg">
+                            <div class="position-relative me-3">
+                                {% if other_user.profile.profile_photo %}
+                                    <img src="{{ other_user.profile.profile_photo.url }}" 
+                                         class="user-avatar" alt="Avatar">
+                                {% else %}
+                                    <div class="user-avatar bg-primary d-flex align-items-center justify-content-center text-white">
+                                        {{ other_user.username|first|upper }}
+                                    </div>
+                                {% endif %}
+                                {% if other_user.profile.online %}
+                                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle">
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ other_user.get_full_name|default:other_user.username }}</h6>
+                                <small class="text-muted">
+                                    {% if other_user.profile.online %}
+                                        <i class="fas fa-circle text-success me-1"></i>Online
+                                    {% else %}
+                                        Last seen {{ other_user.profile.last_activity|timesince }} ago
+                                    {% endif %}
+                                </small>
+                            </div>
+                            <a href="{% url 'private_chat' other_user.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-comment"></i>
+                            </a>
+                        </div>
+                        {% endwith %}
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No recent chats</p>
+                        <a href="{% url 'search_users' %}" class="btn btn-primary">
+                            Start a conversation
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Rooms -->
+    <div class="col-lg-6 mb-4">
+        <div class="card card-custom h-100">
+            <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-door-open me-2"></i>Your Rooms
+                </h5>
+                <div>
+                    <a href="{% url 'my_invitations' %}" class="btn btn-sm btn-outline-info me-1 position-relative" title="My Invitations">
+                        <i class="fas fa-envelope"></i> Invitations
+                        {% if pending_invitations_count %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                {{ pending_invitations_count }}
+                            </span>
+                        {% endif %}
+                    </a>
+                    <a href="{% url 'room_list' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye"></i> View All
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if user_rooms %}
+                    {% for room in user_rooms %}
+                    <div class="d-flex align-items-center mb-3 p-2 rounded room-card" 
+                         data-room-url="{% url 'room_view' room.id %}">
+                        <div class="me-3">
+                            <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white" 
+                                 style="width: 40px; height: 40px;">
+                                <i class="fas fa-hashtag"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">{{ room.name }}</h6>
+                            <small class="text-muted">
+                                <i class="fas fa-users me-1"></i>{{ room.participants.count }} members
+                                {% if room.is_private %}
+                                    <i class="fas fa-lock ms-2 text-warning"></i>
+                                {% endif %}
+                            </small>
+                        </div>
+                        <span class="badge bg-primary room-badge" data-room-id="{{ room.id }}" style="display: none;"></span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-door-open fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No rooms yet</p>
+                        <a href="{% url 'room_list' %}" class="btn btn-primary">
+                            Explore rooms
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Friend Requests -->
+    <div class="col-lg-6 mb-4">
+        <div class="card card-custom">
+            <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-friends me-2"></i>Friend Requests
+                </h5>
+                {% if pending_requests %}
+                    <span class="badge bg-warning">{{ pending_requests.count }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if pending_requests %}
+                    {% for friendship in pending_requests %}
+                    <div class="d-flex align-items-center justify-content-between mb-3 p-2 border rounded">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                {% if friendship.from_user.profile_photo %}
+                                    <img src="{{ friendship.from_user.profile_photo.url }}" 
+                                         class="user-avatar" alt="Avatar">
+                                {% else %}
+                                    <div class="user-avatar bg-secondary d-flex align-items-center justify-content-center text-white">
+                                        {{ friendship.from_user.user.username|first|upper }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <h6 class="mb-1">{{ friendship.from_user.user.get_full_name|default:friendship.from_user.user.username }}</h6>
+                                <small class="text-muted">{{ friendship.created_at|timesince }} ago</small>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-success me-1 friend-request-btn" 
+                                    data-friendship-id="{{ friendship.id }}" 
+                                    data-action="accept">
+                                <i class="fas fa-check"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger friend-request-btn" 
+                                    data-friendship-id="{{ friendship.id }}" 
+                                    data-action="reject">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-user-friends fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No pending friend requests</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Online Friends -->
+    <div class="col-lg-6 mb-4">
+        <div class="card card-custom">
+            <div class="card-header bg-transparent border-0">
+                <h5 class="mb-0">
+                    <i class="fas fa-circle text-success me-2"></i>Online Friends
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if online_friends %}
+                    {% for friend in online_friends %}
+                    <div class="d-flex align-items-center mb-3 p-2 rounded hover-bg">
+                        <div class="position-relative me-3">
+                            {% if friend.profile_photo %}
+                                <img src="{{ friend.profile_photo.url }}" class="user-avatar" alt="Avatar">
+                            {% else %}
+                                <div class="user-avatar bg-success d-flex align-items-center justify-content-center text-white">
+                                    {{ friend.user.username|first|upper }}
+                                </div>
+                            {% endif %}
+                            <span class="online-indicator position-absolute" style="top: -2px; right: -2px;"></span>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0">{{ friend.user.get_full_name|default:friend.user.username }}</h6>
+                            <small class="text-success">Online now</small>
+                        </div>
+                        <a href="{% url 'private_chat' friend.user.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-comment"></i>
+                        </a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-user-slash fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No friends online</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pass dashboard-specific data to JavaScript -->
+<script id="dashboard-data" type="application/json">
+{
+    "friendRequestUrl": "{% url 'respond_friend_request' %}"
+}
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hover-bg:hover {
+        background-color: rgba(0, 123, 255, 0.1) !important;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Get dashboard-specific data
+const dashboardData = JSON.parse(document.getElementById('dashboard-data').textContent);
+
+// Handle room card clicks
+$(document).on('click', '.room-card', function() {
+    const roomUrl = $(this).data('room-url');
+    if (roomUrl) {
+        window.location.href = roomUrl;
+    }
+});
+
+// Handle friend request responses
+$(document).on('click', '.friend-request-btn', function() {
+    const friendshipId = $(this).data('friendship-id');
+    const action = $(this).data('action');
+    
+    if (friendshipId && action) {
+        respondToFriendRequest(friendshipId, action);
+    }
+});
+
+function respondToFriendRequest(friendshipId, action) {
+    $.post(dashboardData.friendRequestUrl, {
+        'friendship_id': friendshipId,
+        'action': action
+    }, function(response) {
+        if (response.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + response.message);
+        }
+    });
+}
+</script>
+{% endblock %}
