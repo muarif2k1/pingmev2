@@ -27,8 +27,8 @@ SECRET_KEY = config('SECRET_KEY', default='fallback-secret-key')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', cast=bool)
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
-# ALLOWED_HOSTS = config('ALLOWED_HOSTS').split(",")
+# ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+ALLOWED_HOSTS = config('ALLOWED_HOSTS').split(",")
 CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS').split(",")
 
 # Application definition
@@ -86,21 +86,21 @@ WSGI_APPLICATION = 'chatapp.wsgi.application'
 #     }
 # }
 
-DATABASES = {
-    'default': dj_database_url.config(default=config('DATABASE_URL'), conn_max_age=600,
-        ssl_require=True)
-}
-
 # DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': config('DATABASE_NAME'),
-#         'USER': config('DATABASE_USER'),
-#         'PASSWORD': config('DATABASE_PASSWORD'),
-#         'HOST': config('DATABASE_HOST'),
-#         'PORT': config('DATABASE_PORT'),
-#     }
+#     'default': dj_database_url.config(default=config('DATABASE_URL'), conn_max_age=600,
+#         ssl_require=True)
 # }
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DATABASE_NAME'),
+        'USER': config('DATABASE_USER'),
+        'PASSWORD': config('DATABASE_PASSWORD'),
+        'HOST': config('DATABASE_HOST'),
+        'PORT': config('DATABASE_PORT'),
+    }
+}
 
 
 # Password validation
