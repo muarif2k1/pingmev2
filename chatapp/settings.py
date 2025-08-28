@@ -86,21 +86,21 @@ WSGI_APPLICATION = 'chatapp.wsgi.application'
 #     }
 # }
 
-# DATABASES = {
-#     'default': dj_database_url.config(default=config('DATABASE_URL'), conn_max_age=600,
-#         ssl_require=True)
-# }
-
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DATABASE_NAME'),
-        'USER': config('DATABASE_USER'),
-        'PASSWORD': config('DATABASE_PASSWORD'),
-        'HOST': config('DATABASE_HOST'),
-        'PORT': config('DATABASE_PORT'),
-    }
+    'default': dj_database_url.config(default=config('DATABASE_URL'), conn_max_age=600,
+        ssl_require=True)
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': config('DATABASE_NAME'),
+#         'USER': config('DATABASE_USER'),
+#         'PASSWORD': config('DATABASE_PASSWORD'),
+#         'HOST': config('DATABASE_HOST'),
+#         'PORT': config('DATABASE_PORT'),
+#     }
+# }
 
 
 # Password validation
