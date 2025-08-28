@@ -26,8 +26,11 @@ urlpatterns = [
     path('admin/', include('admin_honeypot.urls', namespace='admin_honeypot')),
     path('root-24x7access/', admin.site.urls),
     path('', include('chat.urls')),
-    re_path(r'^media/(?P<path>.*)$', media_serve),
 ]
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    urlpatterns += [
+        re_path(r'^media/(?P<path>.*)$', media_serve),
+    ]
