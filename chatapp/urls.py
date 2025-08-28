@@ -19,11 +19,14 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.urls import re_path
+from chat.views import media_serve
 
 urlpatterns = [
     path('admin/', include('admin_honeypot.urls', namespace='admin_honeypot')),
     path('root-24x7access/', admin.site.urls),
     path('', include('chat.urls')),
+    re_path(r'^media/(?P<path>.*)$', media_serve),
 ]
 
 if settings.DEBUG:

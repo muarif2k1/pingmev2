@@ -13,8 +13,16 @@ from django.core.files.storage import default_storage
 from django.urls import reverse
 from .models import UserProfile, Friendship, PrivateChat, Room, Message, RoomParticipant, ChatParticipant, RoomInvitation
 from .forms import UserRegistrationForm, UserProfileForm, RoomCreationForm, MessageForm
+from django.http import FileResponse, Http404
+from django.conf import settings
 import json
 import os
+
+def media_serve(request, path):
+    full_path = os.path.join(settings.MEDIA_ROOT, path)
+    if os.path.exists(full_path):
+        return FileResponse(open(full_path, 'rb'))
+    raise Http404()
 
 # Authentication Views
 def register_view(request):
