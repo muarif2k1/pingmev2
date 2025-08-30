@@ -172,21 +172,57 @@ def search_users(request):
     
     return render(request, 'chat/search_users.html', {'users': users, 'query': query})
 
+# @require_POST
+# @login_required
+# def send_friend_request(request):
+#     user_id = request.POST.get('user_id')
+#     target_user = get_object_or_404(User, id=user_id)
+    
+#     # Check if friendship already exists
+#     existing = Friendship.objects.filter(
+#         Q(from_user=request.user.profile, to_user=target_user.profile) |
+#         Q(from_user=target_user.profile, to_user=request.user.profile)
+#     ).first()
+    
+#     if existing:
+#         return JsonResponse({'success': False, 'message': 'Friendship already exists'})
+    
+#     friendship = Friendship.objects.create(
+#         from_user=request.user.profile,
+#         to_user=target_user.profile
+#     )
+    
+#     return JsonResponse({'success': True, 'message': 'Friend request sent!'})
+
 @require_POST
 @login_required
 def send_friend_request(request):
     user_id = request.POST.get('user_id')
     target_user = get_object_or_404(User, id=user_id)
     
-    # Check if friendship already exists
+    # Check for existing friendship (including rejected ones)
     existing = Friendship.objects.filter(
         Q(from_user=request.user.profile, to_user=target_user.profile) |
         Q(from_user=target_user.profile, to_user=request.user.profile)
     ).first()
     
     if existing:
-        return JsonResponse({'success': False, 'message': 'Friendship already exists'})
+        if existing.status == 'accepted':
+            return JsonResponse({'success': False, 'message': 'You are already friends'})
+        elif existing.status == 'pending':
+            return JsonResponse({'success': False, 'message': 'Friend request already sent'})
+        elif existing.status == 'rejected':
+            # Allow resending after rejection - update the existing request
+            existing.from_user = request.user.profile
+            existing.to_user = target_user.profile
+            existing.status = 'pending'
+            existing.created_at = timezone.now()
+            existing.save()
+            return JsonResponse({'success': True, 'message': 'Friend request sent!'})
+        elif existing.status == 'blocked':
+            return JsonResponse({'success': False, 'message': 'Cannot send friend request'})
     
+    # Create new friendship request
     friendship = Friendship.objects.create(
         from_user=request.user.profile,
         to_user=target_user.profile
@@ -823,3 +859,40 @@ def leave_room(request):
             'success': False,
             'message': f'Error leaving room: {str(e)}'
         })
+
+
+@require_POST
+@login_required
+def remove_friend(request):
+    friend_id = request.POST.get('friend_id')
+    friend_user = get_object_or_404(User, id=friend_id)
+    
+    # Find the friendship
+    friendship = Friendship.objects.filter(
+        Q(from_user=request.user.profile, to_user=friend_user.profile, status='accepted') |
+        Q(from_user=friend_user.profile, to_user=request.user.profile, status='accepted')
+    ).first()
+    
+    if not friendship:
+        return JsonResponse({'success': False, 'message': 'Friendship not found'})
+    
+    try:
+        # Delete the friendship
+        friendship.delete()
+        
+        # Also delete any reverse friendship
+        reverse_friendship = Friendship.objects.filter(
+            Q(from_user=friend_user.profile, to_user=request.user.profile) |
+            Q(from_user=request.user.profile, to_user=friend_user.profile)
+        ).exclude(id=friendship.id if hasattr(friendship, 'id') else None)
+        
+        reverse_friendship.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{friend_user.get_full_name() or friend_user.username} has been removed from your friends list'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+    

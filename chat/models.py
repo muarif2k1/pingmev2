@@ -94,6 +94,17 @@ class Friendship(models.Model):
         self.clean()
         super().save(*args, **kwargs)
 
+    def unfriend(self):
+        """Remove friendship connection"""
+        self.delete()
+        
+        reverse_friendship = Friendship.objects.filter(
+            from_user=self.to_user,
+            to_user=self.from_user
+        ).first()
+        if reverse_friendship:
+            reverse_friendship.delete()
+
 class PrivateChat(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Always store users in consistent order (lower ID first)
@@ -174,99 +185,6 @@ class Room(models.Model):
         verbose_name_plural = "Chat Rooms"
         ordering = ['-created_at']
 
-# class Message(models.Model):
-#     MESSAGE_TYPES = [
-#         ('TEXT', 'Text'),
-#         ('IMAGE', 'Image'),
-#         ('FILE', 'File'),
-#     ]
-    
-#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-#     room = models.ForeignKey(
-#         Room, 
-#         related_name='messages', 
-#         on_delete=models.CASCADE,
-#         null=True,
-#         blank=True
-#     )
-#     private_chat = models.ForeignKey(
-#         PrivateChat,
-#         related_name='messages',
-#         on_delete=models.CASCADE,
-#         null=True,
-#         blank=True
-#     )
-#     user = models.ForeignKey(User, on_delete=models.CASCADE)
-#     content = models.TextField(blank=True)
-#     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
-#     image = models.ImageField(upload_to='message_images/', blank=True, null=True)
-#     file = models.FileField(upload_to='message_files/', blank=True, null=True)
-#     message_type = models.CharField(max_length=5, choices=MESSAGE_TYPES, default='TEXT')
-#     edited = models.BooleanField(default=False)
-#     edited_at = models.DateTimeField(null=True, blank=True)
-#     is_deleted = models.BooleanField(default=False)
-#     deleted_at = models.DateTimeField(null=True, blank=True)
-
-#     def soft_delete(self):
-#         """Soft delete the message"""
-#         self.is_deleted = True
-#         self.deleted_at = timezone.now()
-#         self.content = "[This message was deleted]"
-#         self.save()
-
-#     def edit_message(self, new_content):
-#         """Edit the message content"""
-#         self.content = new_content
-#         self.edited = True
-#         self.edited_at = timezone.now()
-#         self.save()
-
-#     def __str__(self):
-#         if self.is_deleted:
-#             return f"{self.user.username}: [Deleted message]"
-#         return f"{self.user.username}: {self.content[:50]}..."
-
-#     class Meta:
-#         verbose_name = "Message"
-#         verbose_name_plural = "Messages"
-#         ordering = ['timestamp']
-
-#     def save(self, *args, **kwargs):
-#         self.clean()
-#         super().save(*args, **kwargs)
-
-#     def clean(self):
-#         """Enhanced clean method for Message model"""
-#         if not (self.room or self.private_chat):
-#             raise ValidationError("Message must belong to either a room or private chat.")
-#         if self.room and self.private_chat:
-#             raise ValidationError("Message cannot belong to both a room and private chat.")
-        
-#         # Validate message content based on type
-#         if self.message_type == 'TEXT' and not self.content.strip():
-#             raise ValidationError("Text messages must have content.")
-#         elif self.message_type == 'IMAGE' and not self.image:
-#             raise ValidationError("Image messages must have an image file.")
-#         elif self.message_type == 'FILE' and not self.file:
-#             raise ValidationError("File messages must have a file attachment.")
-
-#     def get_file_name(self):
-#         """Get the original filename for file messages"""
-#         if self.message_type == 'FILE' and self.file:
-#             return self.file.name.split('/')[-1]  # Get filename without path
-#         elif self.message_type == 'IMAGE' and self.image:
-#             return self.image.name.split('/')[-1]
-#         return None
-
-#     def get_file_size(self):
-#         """Get file size in bytes"""
-#         if self.message_type == 'FILE' and self.file:
-#             return self.file.size
-#         elif self.message_type == 'IMAGE' and self.image:
-#             return self.image.size
-#         return None
-
-# Add this field to your Message model in models.py
 
 class Message(models.Model):
     MESSAGE_TYPES = [

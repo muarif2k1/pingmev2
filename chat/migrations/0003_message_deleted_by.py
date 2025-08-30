@@ -16,6 +16,13 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='message',
             name='deleted_by',
-            field=models.ForeignKey(blank=True, help_text='User who deleted this message', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='deleted_messages', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(
+                blank=True, 
+                help_text='User who deleted this message', 
+                null=True, 
+                on_delete=django.db.models.deletion.SET_NULL, 
+                related_name='deleted_messages', 
+                to=settings.AUTH_USER_MODEL
+            ),
         ),
     ]
