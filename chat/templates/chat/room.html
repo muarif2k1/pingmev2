@@ -49,8 +49,14 @@
                                 <i class="fas fa-user-plus me-2"></i>Invite Users
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            {% if room.creator == user %}
                             <li><a class="dropdown-item text-danger" href="#" onclick="deleteRoom()">
                                 <i class="fas fa-trash me-2"></i>Delete Room
+                            </a></li>
+                            {% else %}
+                            <li><a class="dropdown-item text-warning" href="#" onclick="leaveRoom()">
+                                <i class="fas fa-sign-out-alt me-2"></i>Leave Room
                             </a></li>
                             {% endif %}
                         </ul>
@@ -62,7 +68,7 @@
             <div class="card-body p-0">
                 <div id="messages-container" class="chat-container" style="height: 500px;">
                     {% for message in chat_messages %}
-                        <div class="message-bubble {% if message.user == user %}message-own{% else %}message-other{% endif %}" 
+                        <div class="message-bubble {% if message.user == user %}message-own{% else %}message-other{% endif %} {% if message.is_deleted %}message-deleted{% endif %}" 
                              data-message-id="{{ message.id }}">
                             {% if message.user != user %}
                                 <div class="d-flex align-items-center mb-1">
@@ -76,14 +82,16 @@
                             
                             <!-- Message Content -->
                             <div class="message-content">
-                                {% if message.message_type == 'TEXT' %}
+                                {% if message.is_deleted %}
+                                    <em class="text-muted">{{ message.content }}</em>
+                                {% elif message.message_type == 'TEXT' %}
                                     {{ message.content }}
                                 {% elif message.message_type == 'IMAGE' %}
                                     <div class="message-image">
                                         <img src="{{ message.image.url }}" class="img-fluid rounded" 
                                              style="max-width: 300px; max-height: 200px; cursor: pointer;"
                                              onclick="showImageModal('{{ message.image.url }}', '{{ message.user.username }}')" alt="Image">
-                                        {% if message.content %}
+                                             {% if message.content %}
                                             <div class="mt-2">{{ message.content }}</div>
                                         {% endif %}
                                     </div>
@@ -110,7 +118,7 @@
                                     <i class="fas fa-edit ms-1" title="Edited"></i>
                                 {% endif %}
                             </small>
-                            {% if message.user == user %}
+                            {% if message.user == user and not message.is_deleted %}
                                 <div class="message-actions" style="display: none;">
                                     {% if message.message_type == 'TEXT' %}
                                         <button class="btn btn-xs btn-outline-secondary me-1" 
@@ -145,12 +153,12 @@
                     <input type="file" id="image-input" name="image" accept="image/*" style="display: none;" onchange="handleFileSelect('image')">
                     <input type="file" id="file-input" name="file" style="display: none;" onchange="handleFileSelect('file')">
                     
-                    <!-- Attachment buttons -->
-                    <div class="me-2">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('image-input').click()" title="Send Image">
+                    <!-- Attachment buttons with improved mobile layout -->
+                    <div class="attachment-buttons me-2 d-flex">
+                        <button type="button" class="btn btn-outline-secondary btn-sm attachment-btn" onclick="document.getElementById('image-input').click()" title="Send Image">
                             <i class="fas fa-image"></i>
                         </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" onclick="document.getElementById('file-input').click()" title="Send File">
+                        <button type="button" class="btn btn-outline-secondary btn-sm attachment-btn" onclick="document.getElementById('file-input').click()" title="Send File">
                             <i class="fas fa-paperclip"></i>
                         </button>
                     </div>
@@ -362,6 +370,16 @@
         border-radius: 8px;
         border-left: 4px solid #0d6efd;
     }
+
+    /* Deleted message styles */
+    .message-deleted {
+        opacity: 0.6;
+    }
+
+    .message-deleted .message-content {
+        font-style: italic;
+        color: #6c757d;
+    }
     
     /* User selection styles */
     .user-card {
@@ -410,6 +428,57 @@
     
     .selected-user-badge .remove-btn:hover {
         background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Improved attachment buttons layout for mobile */
+    .attachment-buttons {
+        flex-wrap: nowrap;
+        gap: 4px;
+    }
+    
+    .attachment-btn {
+        min-width: 36px;
+        min-height: 36px;
+        padding: 6px 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+    }
+    
+    /* Mobile-specific improvements */
+    @media (max-width: 480px) {
+        .attachment-buttons {
+            gap: 2px;
+        }
+        
+        .attachment-btn {
+            min-width: 32px;
+            min-height: 32px;
+            padding: 4px 6px;
+            font-size: 0.875rem;
+        }
+        
+        .me-2 {
+            margin-right: 0.25rem !important;
+        }
+        
+        #file-preview .small {
+            font-size: 0.75rem !important;
+        }
+    }
+    
+    /* Ensure buttons stay side by side even on very small screens */
+    @media (max-width: 360px) {
+        .attachment-btn {
+            min-width: 30px;
+            min-height: 30px;
+            padding: 3px 5px;
+        }
+        
+        .attachment-btn i {
+            font-size: 0.8rem;
+        }
     }
 </style>
 {% endblock %}
@@ -733,12 +802,10 @@ function sendInvitations() {
     const originalText = btn.text();
     btn.html('<i class="fas fa-spinner fa-spin"></i> Sending...').prop('disabled', true);
     
-    // Method 1: Use FormData to properly send arrays
     const formData = new FormData();
     formData.append('room_id', '{{ room.id }}');
     formData.append('csrfmiddlewaretoken', $('[name=csrfmiddlewaretoken]').val());
     
-    // Add each user ID as a separate parameter
     selectedUsers.forEach(userId => {
         formData.append('user_ids', userId);
     });
@@ -753,56 +820,6 @@ function sendInvitations() {
             if (response.success) {
                 alert(`Successfully sent ${response.sent_count} invitation${response.sent_count > 1 ? 's' : ''}!`);
                 
-                // Clear selections and close modal
-                selectedUsers.clear();
-                updateSelectedUsersDisplay();
-                updateSendButton();
-                $('#user-search-input').val('');
-                $('#search-results').html('<p class="text-muted text-center">Search for users to invite them to this room.</p>');
-                $('#inviteUsersModal').modal('hide');
-                
-                // Optionally refresh the page to show new members
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                alert('Error sending invitations: ' + response.message);
-                console.log('Debug info:', response.debug_info);
-            }
-        },
-        error: function(xhr, status, error) {
-            console.log('AJAX Error:', xhr.responseText);
-            alert('Error sending invitations. Please try again.');
-        },
-        complete: function() {
-            btn.text(originalText).prop('disabled', false);
-        }
-    });
-}
-
-// Alternative method using traditional POST with manual parameter building
-function sendInvitationsAlternative() {
-    if (selectedUsers.size === 0) return;
-    
-    const btn = $('#send-invites-btn');
-    const originalText = btn.text();
-    btn.html('<i class="fas fa-spinner fa-spin"></i> Sending...').prop('disabled', true);
-    
-    // Build the data manually to ensure proper array handling
-    let postData = 'room_id={{ room.id }}&csrfmiddlewaretoken=' + encodeURIComponent($('[name=csrfmiddlewaretoken]').val());
-    
-    selectedUsers.forEach(userId => {
-        postData += '&user_ids=' + encodeURIComponent(userId);
-    });
-    
-    $.ajax({
-        url: '{% url "invite_users_to_room" %}',
-        type: 'POST',
-        data: postData,
-        contentType: 'application/x-www-form-urlencoded',
-        success: function(response) {
-            if (response.success) {
-                alert(`Successfully sent ${response.sent_count} invitation${response.sent_count > 1 ? 's' : ''}!`);
-                
-                // Clear selections and close modal
                 selectedUsers.clear();
                 updateSelectedUsersDisplay();
                 updateSendButton();
@@ -813,11 +830,9 @@ function sendInvitationsAlternative() {
                 setTimeout(() => location.reload(), 1000);
             } else {
                 alert('Error sending invitations: ' + response.message);
-                console.log('Debug info:', response.debug_info);
             }
         },
         error: function(xhr, status, error) {
-            console.log('AJAX Error:', xhr.responseText);
             alert('Error sending invitations. Please try again.');
         },
         complete: function() {
@@ -825,8 +840,6 @@ function sendInvitationsAlternative() {
         }
     });
 }
-
-
 
 function editMessage(messageId, currentContent) {
     $('#edit-message-id').val(messageId);
@@ -848,7 +861,6 @@ function saveEditedMessage() {
         'content': newContent
     }, function(response) {
         if (response.success) {
-            // Update message in UI
             const messageElement = $(`.message-bubble[data-message-id="${messageId}"]`);
             messageElement.find('.message-content').text(response.content);
             messageElement.find('.message-time').html(`${response.edited_at} <i class="fas fa-edit ms-1" title="Edited"></i>`);
@@ -866,9 +878,10 @@ function deleteMessage(messageId) {
             'message_id': messageId
         }, function(response) {
             if (response.success) {
-                $(`.message-bubble[data-message-id="${messageId}"]`).fadeOut(300, function() {
-                    $(this).remove();
-                });
+                const messageElement = $(`.message-bubble[data-message-id="${messageId}"]`);
+                messageElement.addClass('message-deleted');
+                messageElement.find('.message-content').html(`<em class="text-muted">${response.deleted_content}</em>`);
+                messageElement.find('.message-actions').remove();
             } else {
                 alert('Error deleting message: ' + response.message);
             }
@@ -877,9 +890,32 @@ function deleteMessage(messageId) {
 }
 
 function deleteRoom() {
-    if (confirm('Are you sure you want to delete this room? This action cannot be undone.')) {
-        // Implementation for room deletion
-        alert('Room deletion functionality would be implemented here');
+    if (confirm('Are you sure you want to delete this room? This action cannot be undone and all messages will be lost.')) {
+        $.post('{% url "delete_room" %}', {
+            'room_id': '{{ room.id }}'
+        }, function(response) {
+            if (response.success) {
+                alert(response.message);
+                window.location.href = response.redirect_url;
+            } else {
+                alert('Error deleting room: ' + response.message);
+            }
+        });
+    }
+}
+
+function leaveRoom() {
+    if (confirm('Are you sure you want to leave this room?')) {
+        $.post('{% url "leave_room" %}', {
+            'room_id': '{{ room.id }}'
+        }, function(response) {
+            if (response.success) {
+                alert(response.message);
+                window.location.href = response.redirect_url;
+            } else {
+                alert('Error leaving room: ' + response.message);
+            }
+        });
     }
 }
 

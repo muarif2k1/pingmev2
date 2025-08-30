@@ -330,58 +330,6 @@ def create_room(request):
     
     return JsonResponse({'success': False, 'errors': form.errors})
 
-# # AJAX Views for messaging
-# @require_POST
-# @login_required
-# def send_message(request):
-#     message_type = request.POST.get('type')  # 'private' or 'room'
-#     content = request.POST.get('content', '').strip()
-    
-#     if not content:
-#         return JsonResponse({'success': False, 'message': 'Message cannot be empty'})
-    
-#     if message_type == 'private':
-#         chat_id = request.POST.get('chat_id')
-#         chat = get_object_or_404(PrivateChat, id=chat_id)
-        
-#         # Check if user is part of this chat
-#         if not (chat.user1 == request.user or chat.user2 == request.user):
-#             return JsonResponse({'success': False, 'message': 'Access denied'})
-        
-#         message = Message.objects.create(
-#             private_chat=chat,
-#             user=request.user,
-#             content=content
-#         )
-        
-#         # Update chat timestamp
-#         chat.updated_at = timezone.now()
-#         chat.save()
-        
-#     elif message_type == 'room':
-#         room_id = request.POST.get('room_id')
-#         room = get_object_or_404(Room, id=room_id)
-        
-#         # Check access
-#         if room.is_private and not (
-#             room.creator == request.user or 
-#             room.participants.filter(user=request.user).exists()
-#         ):
-#             return JsonResponse({'success': False, 'message': 'Access denied'})
-        
-#         message = Message.objects.create(
-#             room=room,
-#             user=request.user,
-#             content=content
-#         )
-    
-#     return JsonResponse({
-#         'success': True,
-#         'message_id': str(message.id),
-#         'content': message.content,
-#         'username': message.user.username,
-#         'timestamp': message.timestamp.strftime('%H:%M')
-#     })
 
 @require_POST
 @login_required
@@ -469,15 +417,15 @@ def send_message(request):
         return JsonResponse({'success': False, 'message': str(e)})
 
 
-@require_POST
-@login_required
-def delete_message(request):
-    message_id = request.POST.get('message_id')
-    message = get_object_or_404(Message, id=message_id, user=request.user)
+# @require_POST
+# @login_required
+# def delete_message(request):
+#     message_id = request.POST.get('message_id')
+#     message = get_object_or_404(Message, id=message_id, user=request.user)
     
-    message.soft_delete()
+#     message.soft_delete()
     
-    return JsonResponse({'success': True, 'message': 'Message deleted'})
+#     return JsonResponse({'success': True, 'message': 'Message deleted'})
 
 @require_POST
 @login_required
@@ -786,3 +734,92 @@ def respond_to_invitation(request):
         
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
+
+
+
+@require_POST
+@login_required
+def delete_message(request):
+    message_id = request.POST.get('message_id')
+    message = get_object_or_404(Message, id=message_id, user=request.user)
+    
+    # Enhanced soft delete with user information
+    message.is_deleted = True
+    message.deleted_at = timezone.now()
+    message.deleted_by = request.user  # You'll need to add this field to your model
+    message.content = f"This message was deleted by {request.user.username}"
+    message.save()
+    
+    return JsonResponse({
+        'success': True, 
+        'message': 'Message deleted',
+        'deleted_content': message.content
+    })
+
+@require_POST
+@login_required
+def delete_room(request):
+    room_id = request.POST.get('room_id')
+    room = get_object_or_404(Room, id=room_id, creator=request.user)
+    
+    try:
+        # Soft delete all messages in the room
+        room.messages.update(
+            is_deleted=True,
+            deleted_at=timezone.now(),
+            content="This message was deleted due to room deletion"
+        )
+        
+        # Remove all participants
+        room.participants.all().delete()
+        
+        # Delete the room
+        room.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Room deleted successfully',
+            'redirect_url': reverse('room_list')
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error deleting room: {str(e)}'
+        })
+
+@require_POST
+@login_required
+def leave_room(request):
+    room_id = request.POST.get('room_id')
+    room = get_object_or_404(Room, id=room_id)
+    
+    try:
+        # Check if user is the creator
+        if room.creator == request.user:
+            return JsonResponse({
+                'success': False,
+                'message': 'Room creators cannot leave. You must delete the room or transfer ownership.'
+            })
+        
+        # Remove user from participants
+        participant = RoomParticipant.objects.filter(room=room, user=request.user).first()
+        if participant:
+            participant.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Left room successfully',
+                'redirect_url': reverse('room_list')
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': 'You are not a member of this room'
+            })
+            
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error leaving room: {str(e)}'
+        })

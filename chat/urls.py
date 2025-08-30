@@ -23,6 +23,8 @@ urlpatterns = [
     path('rooms/', views.room_list, name='room_list'),
     path('room/<uuid:room_id>/', views.room_view, name='room_view'),
     path('create-room/', views.create_room, name='create_room'),
+    path('room/delete/', views.delete_room, name='delete_room'),
+    path('room/leave/', views.leave_room, name='leave_room'),
     
     # Message handling URLs
     path('send-message/', views.send_message, name='send_message'),
