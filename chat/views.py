@@ -18,6 +18,8 @@ from django.conf import settings
 import json
 import os
 from datetime import datetime, date, timedelta
+from django.utils import timezone
+
 
 
 def media_serve(request, path):
@@ -270,7 +272,9 @@ def private_chat_view(request, user_id):
         'chat': chat,
         'other_user': other_user,
         'chat_messages': messages_list,
-        'form': MessageForm()
+        'form': MessageForm(),
+        'today': timezone.now().date(),
+        'yesterday': timezone.now().date() - timedelta(days=1),
     }
     
     return render(request, 'chat/private_chat.html', context)
@@ -335,7 +339,9 @@ def room_view(request, room_id):
         'room': room,
         'chat_messages': messages_list,
         'participant': participant,
-        'form': MessageForm()
+        'form': MessageForm(),
+        'today': timezone.now().date(),
+        'yesterday': timezone.now().date() - timedelta(days=1),
     }
     
     return render(request, 'chat/room.html', context)
@@ -433,8 +439,14 @@ def send_message(request):
             'message_id': str(message.id),
             'content': message.content,
             'username': message.user.username,
-            'timestamp': message.timestamp.strftime('%H:%M'),
-            'message_type': message.message_type
+            'timestamp': message.timestamp.isoformat(),
+            'formatted_time': message.timestamp.strftime('%H:%M'),
+            'message_type': message.message_type,
+            'is_own': True,
+            'edited': False,
+            'read_count': 0,  # New message, no reads yet
+            'read_by': [],
+            'is_deleted': False
         }
         
         # Add file information if applicable
@@ -451,15 +463,6 @@ def send_message(request):
         return JsonResponse({'success': False, 'message': str(e)})
 
 
-# @require_POST
-# @login_required
-# def delete_message(request):
-#     message_id = request.POST.get('message_id')
-#     message = get_object_or_404(Message, id=message_id, user=request.user)
-    
-#     message.soft_delete()
-    
-#     return JsonResponse({'success': True, 'message': 'Message deleted'})
 
 @require_POST
 @login_required
@@ -470,14 +473,26 @@ def edit_message(request):
     if not new_content:
         return JsonResponse({'success': False, 'message': 'Content cannot be empty'})
     
-    message = get_object_or_404(Message, id=message_id, user=request.user)
-    message.edit_message(new_content)
-    
-    return JsonResponse({
-        'success': True,
-        'content': message.content,
-        'edited_at': message.edited_at.strftime('%H:%M')
-    })
+    try:
+        message = get_object_or_404(Message, id=message_id, user=request.user)
+        
+        # Only allow editing text messages
+        if message.message_type != 'TEXT':
+            return JsonResponse({'success': False, 'message': 'Only text messages can be edited'})
+        
+        if message.is_deleted:
+            return JsonResponse({'success': False, 'message': 'Cannot edit deleted messages'})
+        
+        message.edit_message(new_content)
+        
+        return JsonResponse({
+            'success': True,
+            'content': message.content,
+            'edited_at': message.edited_at.strftime('%H:%M') if message.edited_at else ''
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
 
 
 @login_required
@@ -519,8 +534,10 @@ def get_chat_messages(request, chat_id):
         
         # Get read receipt info
         read_by_users = []
-        if msg.user != request.user:  # Only show read receipts for messages not sent by current user
+        is_read = False
+        if msg.user != request.user:
             read_receipts = msg.read_receipts.exclude(user=request.user)
+            is_read = msg.read_receipts.filter(user=request.user).exists()
             read_by_users = [
                 {
                     'username': receipt.user.username,
@@ -528,6 +545,10 @@ def get_chat_messages(request, chat_id):
                 }
                 for receipt in read_receipts
             ]
+        else:
+            # For own messages, check if other user has read it
+            other_user = chat.get_other_user(request.user)
+            is_read = msg.read_receipts.filter(user=other_user).exists()
         
         message_data = {
             'type': 'message',
@@ -540,7 +561,8 @@ def get_chat_messages(request, chat_id):
             'edited': msg.edited,
             'message_type': msg.message_type,
             'read_by': read_by_users,
-            'is_read': msg.is_read_by(request.user) if msg.user != request.user else True
+            'is_read': is_read,
+            'is_deleted': msg.is_deleted
         }
         
         # Add file information
@@ -612,10 +634,10 @@ def get_room_messages(request, room_id):
         # Get read receipt info for room messages
         read_by_users = []
         read_count = 0
-        if msg.user != request.user:
+        if msg.user == request.user:
+            # For own messages, count how many others have read it
             read_receipts = msg.read_receipts.exclude(user=request.user)
             read_count = read_receipts.count()
-            # Only show first few readers to avoid cluttering
             read_by_users = [
                 {
                     'username': receipt.user.username,
@@ -636,7 +658,8 @@ def get_room_messages(request, room_id):
             'message_type': msg.message_type,
             'read_by': read_by_users,
             'read_count': read_count,
-            'is_read': msg.is_read_by(request.user) if msg.user != request.user else True
+            'is_read': msg.is_read_by(request.user) if msg.user != request.user else True,
+            'is_deleted': msg.is_deleted
         }
         
         # Add file information
@@ -887,21 +910,31 @@ def respond_to_invitation(request):
 @login_required
 def delete_message(request):
     message_id = request.POST.get('message_id')
-    message = get_object_or_404(Message, id=message_id, user=request.user)
     
-    # Enhanced soft delete with user information
-    message.is_deleted = True
-    message.deleted_at = timezone.now()
-    message.deleted_by = request.user  # You'll need to add this field to your model
-    message.content = f"This message was deleted by {request.user.username}"
-    message.save()
+    try:
+        message = get_object_or_404(Message, id=message_id, user=request.user)
+        
+        if message.is_deleted:
+            return JsonResponse({'success': False, 'message': 'Message already deleted'})
+        
+        # Enhanced soft delete with user information
+        message.is_deleted = True
+        message.deleted_at = timezone.now()
+        message.deleted_by = request.user
+        deleted_content = f"This message was deleted by {request.user.username}"
+        message.content = deleted_content
+        message.save()
+        
+        return JsonResponse({
+            'success': True, 
+            'message': 'Message deleted',
+            'deleted_content': deleted_content
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
     
-    return JsonResponse({
-        'success': True, 
-        'message': 'Message deleted',
-        'deleted_content': message.content
-    })
-
+    
 @require_POST
 @login_required
 def delete_room(request):
@@ -1037,11 +1070,18 @@ def mark_message_as_read(request):
 
 def get_date_label(message_date):
     """Get user-friendly date label like 'Today', 'Yesterday', etc."""
-    today = date.today()
+    if not isinstance(message_date, date):
+        if isinstance(message_date, datetime):
+            message_date = message_date.date()
+        else:
+            return "Invalid Date"
+    
+    today = timezone.now().date()
+    yesterday = today - timedelta(days=1)
     
     if message_date == today:
         return "Today"
-    elif message_date == today - timedelta(days=1):
+    elif message_date == yesterday:
         return "Yesterday"
     elif message_date > today - timedelta(days=7):
         return message_date.strftime("%A")  # Day name like "Monday"
