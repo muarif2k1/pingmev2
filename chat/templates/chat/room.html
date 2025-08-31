@@ -67,78 +67,117 @@
             <!-- Messages Container -->
             <div class="card-body p-0">
                 <div id="messages-container" class="chat-container" style="height: 500px;">
-                    {% for message in chat_messages %}
-                        <div class="message-bubble {% if message.user == user %}message-own{% else %}message-other{% endif %} {% if message.is_deleted %}message-deleted{% endif %}" 
-                             data-message-id="{{ message.id }}">
-                            {% if message.user != user %}
-                                <div class="d-flex align-items-center mb-1">
-                                    {% if message.user.profile.profile_photo %}
-                                        <img src="{{ message.user.profile.profile_photo.url }}" 
-                                             class="rounded-circle me-2" style="width: 20px; height: 20px;" alt="Avatar">
-                                    {% endif %}
-                                    <small class="text-muted fw-bold">{{ message.user.username }}</small>
+                    <div id="loading-indicator" class="text-center py-3" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i> Loading more messages...
+                    </div>
+                    
+                    {% if chat_messages %}
+                        {% load humanize %}
+                        {% for message in chat_messages %}
+                            {% ifchanged message.timestamp.date %}
+                                <div class="date-header">
+                                    <span class="date-label">
+                                        {% if message.timestamp.date == today %}
+                                            Today
+                                        {% elif message.timestamp.date == yesterday %}
+                                            Yesterday
+                                        {% else %}
+                                            {{ message.timestamp|date:"F d, Y" }}
+                                        {% endif %}
+                                    </span>
                                 </div>
-                            {% endif %}
+                            {% endifchanged %}
                             
-                            <!-- Message Content -->
-                            <div class="message-content">
-                                {% if message.is_deleted %}
-                                    <em class="text-muted">{{ message.content }}</em>
-                                {% elif message.message_type == 'TEXT' %}
-                                    {{ message.content }}
-                                {% elif message.message_type == 'IMAGE' %}
-                                    <div class="message-image">
-                                        <img src="{{ message.image.url }}" class="img-fluid rounded" 
-                                             style="max-width: 300px; max-height: 200px; cursor: pointer;"
-                                             onclick="showImageModal('{{ message.image.url }}', '{{ message.user.username }}')" alt="Image">
-                                             {% if message.content %}
-                                            <div class="mt-2">{{ message.content }}</div>
+                            <div class="message-bubble {% if message.user == user %}message-own{% else %}message-other{% endif %} {% if message.is_deleted %}message-deleted{% endif %}" 
+                                 data-message-id="{{ message.id }}">
+                                {% if message.user != user %}
+                                    <div class="d-flex align-items-center mb-1">
+                                        {% if message.user.profile.profile_photo %}
+                                            <img src="{{ message.user.profile.profile_photo.url }}" 
+                                                 class="rounded-circle me-2" style="width: 20px; height: 20px;" alt="Avatar">
                                         {% endif %}
+                                        <small class="text-muted fw-bold">{{ message.user.username }}</small>
                                     </div>
-                                {% elif message.message_type == 'FILE' %}
-                                    <div class="message-file">
-                                        <i class="fas fa-file me-2"></i>
-                                        <a href="{{ message.file.url }}" download class="text-decoration-none">
-                                            {{ message.file.name|slice:"13:" }}
-                                        </a>
-                                        <small class="text-muted d-block">
-                                            {% load humanize %}
-                                            {{ message.file.size|filesizeformat }}
-                                        </small>
-                                        {% if message.content %}
-                                            <div class="mt-2">{{ message.content }}</div>
+                                {% endif %}
+                                
+                                <!-- Message Content -->
+                                <div class="message-content">
+                                    {% if message.is_deleted %}
+                                        <em class="text-muted">{{ message.content }}</em>
+                                    {% elif message.message_type == 'TEXT' %}
+                                        {{ message.content }}
+                                    {% elif message.message_type == 'IMAGE' %}
+                                        <div class="message-image">
+                                            <img src="{{ message.image.url }}" class="img-fluid rounded" 
+                                                 style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                                                 onclick="showImageModal('{{ message.image.url }}', '{{ message.user.username }}')" alt="Image">
+                                                 {% if message.content %}
+                                                <div class="mt-2">{{ message.content }}</div>
+                                            {% endif %}
+                                        </div>
+                                    {% elif message.message_type == 'FILE' %}
+                                        <div class="message-file">
+                                            <i class="fas fa-file me-2"></i>
+                                            <a href="{{ message.file.url }}" download class="text-decoration-none">
+                                                {{ message.file.name|slice:"13:" }}
+                                            </a>
+                                            <small class="text-muted d-block">
+                                                {{ message.file.size|filesizeformat }}
+                                            </small>
+                                            {% if message.content %}
+                                                <div class="mt-2">{{ message.content }}</div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="message-footer d-flex align-items-center justify-content-between">
+                                    <small class="text-muted message-time">
+                                        {{ message.timestamp|date:"H:i" }}
+                                        {% if message.edited %}
+                                            <i class="fas fa-edit ms-1" title="Edited"></i>
                                         {% endif %}
+                                    </small>
+                                    
+                                    <!-- Read Receipt for own messages in rooms -->
+                                    {% if message.user == user and not message.is_deleted %}
+                                        <div class="read-receipt">
+                                            {% with read_count=message.read_receipts.count %}
+                                                {% if read_count > 0 %}
+                                                    <i class="fas fa-check-double text-primary" title="Read by {{ read_count }} member{{ read_count|pluralize }}"></i>
+                                                    {% if read_count > 1 %}
+                                                        <small class="text-muted">{{ read_count }}</small>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <i class="fas fa-check text-muted" title="Sent"></i>
+                                                {% endif %}
+                                            {% endwith %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if message.user == user and not message.is_deleted %}
+                                    <div class="message-actions" style="display: none;">
+                                        {% if message.message_type == 'TEXT' %}
+                                            <button class="btn btn-xs btn-outline-secondary me-1" 
+                                                    onclick="editMessage('{{ message.id }}', '{{ message.content|escapejs }}')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        {% endif %}
+                                        <button class="btn btn-xs btn-outline-danger" 
+                                                onclick="deleteMessage('{{ message.id }}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     </div>
                                 {% endif %}
                             </div>
-                            
-                            <small class="text-muted message-time">
-                                {{ message.timestamp|date:"H:i" }}
-                                {% if message.edited %}
-                                    <i class="fas fa-edit ms-1" title="Edited"></i>
-                                {% endif %}
-                            </small>
-                            {% if message.user == user and not message.is_deleted %}
-                                <div class="message-actions" style="display: none;">
-                                    {% if message.message_type == 'TEXT' %}
-                                        <button class="btn btn-xs btn-outline-secondary me-1" 
-                                                onclick="editMessage('{{ message.id }}', '{{ message.content|escapejs }}')">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                    {% endif %}
-                                    <button class="btn btn-xs btn-outline-danger" 
-                                            onclick="deleteMessage('{{ message.id }}')">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% empty %}
+                        {% endfor %}
+                    {% else %}
                         <div class="text-center py-5">
                             <i class="fas fa-comments fa-3x text-muted mb-3"></i>
                             <p class="text-muted">No messages yet. Start the conversation!</p>
                         </div>
-                    {% endfor %}
+                    {% endif %}
                 </div>
             </div>
 
@@ -350,6 +389,35 @@
         scroll-behavior: smooth;
     }
 
+    .date-header {
+        text-align: center;
+        margin: 20px 0;
+        position: relative;
+    }
+    
+    .date-header::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: #dee2e6;
+        z-index: 1;
+    }
+    
+    .date-label {
+        background: white;
+        padding: 5px 15px;
+        color: #6c757d;
+        font-size: 0.875rem;
+        font-weight: 500;
+        position: relative;
+        z-index: 2;
+        border-radius: 15px;
+        border: 1px solid #dee2e6;
+    }
+
     /* Room icon styles */
     .room-icon-private {
         background-color: #ffc107 !important;
@@ -369,16 +437,6 @@
         padding: 10px;
         border-radius: 8px;
         border-left: 4px solid #0d6efd;
-    }
-
-    /* Deleted message styles */
-    .message-deleted {
-        opacity: 0.6;
-    }
-
-    .message-deleted .message-content {
-        font-style: italic;
-        color: #6c757d;
     }
     
     /* User selection styles */
@@ -446,6 +504,67 @@
         white-space: nowrap;
     }
     
+     /* Message footer styles */
+    .message-footer {
+        margin-top: 5px;
+    }
+    
+    /* Read receipt styles for rooms */
+    .read-receipt {
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+    
+    .read-receipt .fa-check-double {
+        color: #0d6efd;
+    }
+    
+    .read-receipt .fa-check {
+        color: #6c757d;
+    }
+    
+    /* Room icon styles */
+    .room-icon-private {
+        background-color: #ffc107 !important;
+    }
+
+    .room-icon-public {
+        background-color: #0d6efd !important;
+    }
+    
+    /* File preview styles */
+    .message-image img {
+        border-radius: 8px;
+    }
+    
+    .message-file {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 8px;
+        border-left: 4px solid #0d6efd;
+    }
+
+    /* Deleted message styles */
+    .message-deleted {
+        opacity: 0.6;
+    }
+
+    .message-deleted .message-content {
+        font-style: italic;
+        color: #6c757d;
+    }
+    
+    /* Loading indicator */
+    #loading-indicator {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+        border-bottom: 1px solid #dee2e6;
+    }
+
     /* Mobile-specific improvements */
     @media (max-width: 480px) {
         .attachment-buttons {
@@ -465,6 +584,14 @@
         
         #file-preview .small {
             font-size: 0.75rem !important;
+        }
+        .date-label {
+            padding: 3px 10px;
+            font-size: 0.75rem;
+        }
+        
+        .read-receipt {
+            font-size: 0.7rem;
         }
     }
     
@@ -486,6 +613,9 @@
 {% block extra_js %}
 <script>
 let isAtBottom = true;
+let currentPage = 1;
+let isLoading = false;
+let hasMoreMessages = true;
 let selectedUsers = new Set();
 
 $(document).ready(function() {
@@ -493,9 +623,14 @@ $(document).ready(function() {
     scrollToBottom();
     
     // Check if user is at bottom when scrolling
-    $('#messages-container').on('scroll', function() {
-        const container = $(this)[0];
+    const container = $('#messages-container')[0];
+    $(container).on('scroll', function() {
         isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 1;
+        
+        // Load more messages when scrolling to top
+        if (container.scrollTop === 0 && hasMoreMessages && !isLoading) {
+            loadMoreMessages();
+        }
     });
     
     // Handle message form submission
@@ -557,6 +692,50 @@ $(document).ready(function() {
     });
 });
 
+
+function loadMoreMessages() {
+    if (isLoading || !hasMoreMessages) return;
+    
+    isLoading = true;
+    $('#loading-indicator').show();
+    
+    currentPage++;
+    
+    $.get('{% url "get_room_messages" room.id %}', {
+        page: currentPage,
+        limit: 20
+    }, function(data) {
+        if (data.messages && data.messages.length > 0) {
+            const container = $('#messages-container');
+            const scrollHeight = container[0].scrollHeight;
+            
+            // Add messages to top
+            data.messages.reverse().forEach(function(item) {
+                if (item.type === 'date_header') {
+                    addDateHeaderToUI(item, true);
+                } else {
+                    addMessageToUI(item, false, true);
+                }
+            });
+            
+            // Maintain scroll position
+            const newScrollHeight = container[0].scrollHeight;
+            container[0].scrollTop = newScrollHeight - scrollHeight;
+            
+            hasMoreMessages = data.has_more;
+        } else {
+            hasMoreMessages = false;
+        }
+    }).fail(function() {
+        currentPage--; // Revert page increment on failure
+        alert('Error loading messages');
+    }).always(function() {
+        isLoading = false;
+        $('#loading-indicator').hide();
+    });
+}
+
+
 function handleFileSelect(type) {
     const input = document.getElementById(type + '-input');
     const file = input.files[0];
@@ -592,7 +771,7 @@ function showImageModal(imageUrl, username) {
     new bootstrap.Modal(document.getElementById('imageModal')).show();
 }
 
-function addMessageToUI(messageData, isOwn) {
+function addMessageToUI(messageData, isOwn, prepend = false) {
     const messageClass = isOwn ? 'message-own' : 'message-other';
     const userInfo = isOwn ? '' : `
         <div class="d-flex align-items-center mb-1">
@@ -624,34 +803,60 @@ function addMessageToUI(messageData, isOwn) {
         messageContent = messageData.content;
     }
     
+    // Read receipt indicator for own messages in rooms
+    let readReceipt = '';
+    if (isOwn) {
+        const readCount = messageData.read_count || 0;
+        if (readCount > 0) {
+            readReceipt = `
+                <div class="read-receipt">
+                    <i class="fas fa-check-double text-primary" title="Read by ${readCount} member${readCount > 1 ? 's' : ''}"></i>
+                    ${readCount > 1 ? `<small class="text-muted">${readCount}</small>` : ''}
+                </div>
+            `;
+        } else {
+            readReceipt = '<div class="read-receipt"><i class="fas fa-check text-muted" title="Sent"></i></div>';
+        }
+    }
+    
     const messageActions = isOwn ? `
         <div class="message-actions" style="display: none;">
             ${messageData.message_type === 'TEXT' ? `
                 <button class="btn btn-xs btn-outline-secondary me-1" 
-                        onclick="editMessage('${messageData.message_id}', '${messageData.content ? messageData.content.replace(/'/g, "\\'") : ''}')">
+                        onclick="editMessage('${messageData.message_id || messageData.id}', '${messageData.content ? messageData.content.replace(/'/g, "\\'") : ''}')">
                     <i class="fas fa-edit"></i>
                 </button>
             ` : ''}
             <button class="btn btn-xs btn-outline-danger" 
-                    onclick="deleteMessage('${messageData.message_id}')">
+                    onclick="deleteMessage('${messageData.message_id || messageData.id}')">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
     ` : '';
     
     const messageHTML = `
-        <div class="message-bubble ${messageClass}" data-message-id="${messageData.message_id}">
+        <div class="message-bubble ${messageClass}" data-message-id="${messageData.message_id || messageData.id}">
             ${userInfo}
             <div class="message-content">${messageContent}</div>
-            <small class="text-muted message-time">${messageData.timestamp}</small>
+            <div class="message-footer d-flex align-items-center justify-content-between">
+                <small class="text-muted message-time">
+                    ${messageData.formatted_time || messageData.timestamp}
+                    ${messageData.edited ? '<i class="fas fa-edit ms-1" title="Edited"></i>' : ''}
+                </small>
+                ${readReceipt}
+            </div>
             ${messageActions}
         </div>
     `;
     
-    $('#messages-container').append(messageHTML);
-    
-    if (isAtBottom) {
-        scrollToBottom();
+    if (prepend) {
+        $('#messages-container').prepend(messageHTML);
+    } else {
+        $('#messages-container').append(messageHTML);
+        
+        if (isAtBottom) {
+            scrollToBottom();
+        }
     }
 }
 

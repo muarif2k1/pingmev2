@@ -49,106 +49,72 @@
             <!-- Messages Container -->
             <div class="card-body p-0">
                 <div id="messages-container" class="chat-container" style="height: 500px;">
-                    <div id="loading-indicator" class="text-center py-3" style="display: none;">
-                        <i class="fas fa-spinner fa-spin"></i> Loading more messages...
-                    </div>
-                    
-                    {% if chat_messages %}
-                        {% load humanize %}
-                        {% for message in chat_messages %}
-                            {% ifchanged message.timestamp.date %}
-                                <div class="date-header">
-                                    <span class="date-label">
-                                        {% if message.timestamp.date == today %}
-                                            Today
-                                        {% elif message.timestamp.date == yesterday %}
-                                            Yesterday
-                                        {% else %}
-                                            {{ message.timestamp|date:"F d, Y" }}
-                                        {% endif %}
-                                    </span>
-                                </div>
-                            {% endifchanged %}
+                    {% for message in chat_messages %}
+                        <div class="message-bubble {% if message.user == user %}message-own{% else %}message-other{% endif %} {% if message.is_deleted %}message-deleted{% endif %}" 
+                             data-message-id="{{ message.id }}">
+                            {% if message.user != user %}
+                                <small class="text-muted">{{ message.user.username }}</small><br>
+                            {% endif %}
                             
-                            <div class="message-bubble {% if message.user == user %}message-own{% else %}message-other{% endif %} {% if message.is_deleted %}message-deleted{% endif %}" 
-                                 data-message-id="{{ message.id }}">
-                                {% if message.user != user %}
-                                    <small class="text-muted">{{ message.user.username }}</small><br>
-                                {% endif %}
-                                
-                                <!-- Message Content -->
-                                <div class="message-content">
-                                    {% if message.is_deleted %}
-                                        <em class="text-muted">{{ message.content }}</em>
-                                    {% elif message.message_type == 'TEXT' %}
-                                        {{ message.content }}
-                                    {% elif message.message_type == 'IMAGE' %}
-                                        <div class="message-image">
-                                            <img src="{{ message.image.url }}" class="img-fluid rounded" 
-                                                 style="max-width: 300px; max-height: 200px; cursor: pointer;"
-                                                 onclick="showImageModal('{{ message.image.url }}', '{{ message.user.username }}')" alt="Image">
-                                            {% if message.content %}
-                                                <div class="mt-2">{{ message.content }}</div>
-                                            {% endif %}
-                                        </div>
-                                    {% elif message.message_type == 'FILE' %}
-                                        <div class="message-file">
-                                            <i class="fas fa-file me-2"></i>
-                                            <a href="{{ message.file.url }}" download class="text-decoration-none">
-                                                {{ message.file.name|slice:"13:" }}
-                                            </a>
-                                            <small class="text-muted d-block">
-                                                {{ message.file.size|filesizeformat }}
-                                            </small>
-                                            {% if message.content %}
-                                                <div class="mt-2">{{ message.content }}</div>
-                                            {% endif %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="message-footer d-flex align-items-center justify-content-between">
-                                    <small class="text-muted message-time">
-                                        {{ message.timestamp|date:"H:i" }}
-                                        {% if message.edited %}
-                                            <i class="fas fa-edit ms-1" title="Edited"></i>
+                            <!-- Message Content -->
+                            <div class="message-content">
+                                {% if message.is_deleted %}
+                                    <em class="text-muted">{{ message.content }}</em>
+                                {% elif message.message_type == 'TEXT' %}
+                                    {{ message.content }}
+                                {% elif message.message_type == 'IMAGE' %}
+                                    <div class="message-image">
+                                        <img src="{{ message.image.url }}" class="img-fluid rounded" 
+                                             style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                                             onclick="showImageModal('{{ message.image.url }}', '{{ message.user.username }}')" alt="Image">
+                                        {% if message.content %}
+                                            <div class="mt-2">{{ message.content }}</div>
                                         {% endif %}
-                                    </small>
-                                    
-                                    <!-- Read Receipt for own messages -->
-                                    {% if message.user == user and not message.is_deleted %}
-                                        <div class="read-receipt">
-                                            {% if message.read_receipts.exists %}
-                                                <i class="fas fa-check-double text-primary" title="Read"></i>
-                                            {% else %}
-                                                <i class="fas fa-check text-muted" title="Sent"></i>
-                                            {% endif %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                                
-                                {% if message.user == user and not message.is_deleted %}
-                                    <div class="message-actions" style="display: none;">
-                                        {% if message.message_type == 'TEXT' %}
-                                            <button class="btn btn-xs btn-outline-secondary me-1" 
-                                                    onclick="editMessage('{{ message.id }}', '{{ message.content|escapejs }}')">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
+                                    </div>
+                                {% elif message.message_type == 'FILE' %}
+                                    <div class="message-file">
+                                        <i class="fas fa-file me-2"></i>
+                                        <a href="{{ message.file.url }}" download class="text-decoration-none">
+                                            {{ message.file.name|slice:"13:" }}
+                                        </a>
+                                        <small class="text-muted d-block">
+                                            {% load humanize %}
+                                            {{ message.file.size|filesizeformat }}
+                                        </small>
+                                        {% if message.content %}
+                                            <div class="mt-2">{{ message.content }}</div>
                                         {% endif %}
-                                        <button class="btn btn-xs btn-outline-danger" 
-                                                onclick="deleteMessage('{{ message.id }}')">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
                                     </div>
                                 {% endif %}
                             </div>
-                        {% endfor %}
-                    {% else %}
+                            
+                            <small class="text-muted message-time">
+                                {{ message.timestamp|date:"H:i" }}
+                                {% if message.edited %}
+                                    <i class="fas fa-edit ms-1" title="Edited"></i>
+                                {% endif %}
+                            </small>
+                            {% if message.user == user and not message.is_deleted %}
+                                <div class="message-actions" style="display: none;">
+                                    {% if message.message_type == 'TEXT' %}
+                                        <button class="btn btn-xs btn-outline-secondary me-1" 
+                                                onclick="editMessage('{{ message.id }}', '{{ message.content|escapejs }}')">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    {% endif %}
+                                    <button class="btn btn-xs btn-outline-danger" 
+                                            onclick="deleteMessage('{{ message.id }}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% empty %}
                         <div class="text-center py-5">
                             <i class="fas fa-comments fa-3x text-muted mb-3"></i>
                             <p class="text-muted">No messages yet. Start the conversation!</p>
                         </div>
-                    {% endif %}
+                    {% endfor %}
                 </div>
             </div>
 
@@ -242,7 +208,6 @@
 <style>
     .message-bubble {
         position: relative;
-        margin-bottom: 15px;
     }
 
     .message-bubble:hover .message-actions {
@@ -262,55 +227,6 @@
 
     #messages-container {
         scroll-behavior: smooth;
-        overflow-y: auto;
-    }
-    
-    /* Date header styles */
-    .date-header {
-        text-align: center;
-        margin: 20px 0;
-        position: relative;
-    }
-    
-    .date-header::before {
-        content: '';
-        position: absolute;
-        top: 50%;
-        left: 0;
-        right: 0;
-        height: 1px;
-        background: #dee2e6;
-        z-index: 1;
-    }
-    
-    .date-label {
-        background: white;
-        padding: 5px 15px;
-        color: #6c757d;
-        font-size: 0.875rem;
-        font-weight: 500;
-        position: relative;
-        z-index: 2;
-        border-radius: 15px;
-        border: 1px solid #dee2e6;
-    }
-    
-    /* Message footer styles */
-    .message-footer {
-        margin-top: 5px;
-    }
-    
-    /* Read receipt styles */
-    .read-receipt {
-        font-size: 0.75rem;
-    }
-    
-    .read-receipt .fa-check-double {
-        color: #0d6efd;
-    }
-    
-    .read-receipt .fa-check {
-        color: #6c757d;
     }
     
     /* File preview styles */
@@ -351,15 +267,6 @@
         white-space: nowrap;
     }
     
-    /* Loading indicator */
-    #loading-indicator {
-        position: sticky;
-        top: 0;
-        background: white;
-        z-index: 10;
-        border-bottom: 1px solid #dee2e6;
-    }
-    
     /* Mobile-specific improvements */
     @media (max-width: 480px) {
         .attachment-buttons {
@@ -379,11 +286,6 @@
         
         #file-preview .small {
             font-size: 0.75rem !important;
-        }
-        
-        .date-label {
-            padding: 3px 10px;
-            font-size: 0.75rem;
         }
     }
     
@@ -405,23 +307,15 @@
 {% block extra_js %}
 <script>
 let isAtBottom = true;
-let currentPage = 1;
-let isLoading = false;
-let hasMoreMessages = true;
 
 $(document).ready(function() {
     // Scroll to bottom initially
     scrollToBottom();
     
     // Check if user is at bottom when scrolling
-    const container = $('#messages-container')[0];
-    $(container).on('scroll', function() {
+    $('#messages-container').on('scroll', function() {
+        const container = $(this)[0];
         isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 1;
-        
-        // Load more messages when scrolling to top
-        if (container.scrollTop === 0 && hasMoreMessages && !isLoading) {
-            loadMoreMessages();
-        }
     });
     
     // Handle message form submission
@@ -475,48 +369,6 @@ $(document).ready(function() {
     setInterval(refreshMessages, 5000);
 });
 
-function loadMoreMessages() {
-    if (isLoading || !hasMoreMessages) return;
-    
-    isLoading = true;
-    $('#loading-indicator').show();
-    
-    currentPage++;
-    
-    $.get('{% url "get_chat_messages" chat.id %}', {
-        page: currentPage,
-        limit: 20
-    }, function(data) {
-        if (data.messages && data.messages.length > 0) {
-            const container = $('#messages-container');
-            const scrollHeight = container[0].scrollHeight;
-            
-            // Add messages to top
-            data.messages.reverse().forEach(function(item) {
-                if (item.type === 'date_header') {
-                    addDateHeaderToUI(item, true);
-                } else {
-                    addMessageToUI(item, false, true);
-                }
-            });
-            
-            // Maintain scroll position
-            const newScrollHeight = container[0].scrollHeight;
-            container[0].scrollTop = newScrollHeight - scrollHeight;
-            
-            hasMoreMessages = data.has_more;
-        } else {
-            hasMoreMessages = false;
-        }
-    }).fail(function() {
-        currentPage--; // Revert page increment on failure
-        alert('Error loading messages');
-    }).always(function() {
-        isLoading = false;
-        $('#loading-indicator').hide();
-    });
-}
-
 function handleFileSelect(type) {
     const input = document.getElementById(type + '-input');
     const file = input.files[0];
@@ -552,21 +404,7 @@ function showImageModal(imageUrl, username) {
     new bootstrap.Modal(document.getElementById('imageModal')).show();
 }
 
-function addDateHeaderToUI(dateData, prepend = false) {
-    const dateHTML = `
-        <div class="date-header">
-            <span class="date-label">${dateData.label}</span>
-        </div>
-    `;
-    
-    if (prepend) {
-        $('#messages-container').prepend(dateHTML);
-    } else {
-        $('#messages-container').append(dateHTML);
-    }
-}
-
-function addMessageToUI(messageData, isOwn, prepend = false) {
+function addMessageToUI(messageData, isOwn) {
     const messageClass = isOwn ? 'message-own' : 'message-other';
     const username = isOwn ? '' : `<small class="text-muted">${messageData.username}</small><br>`;
     
@@ -594,54 +432,34 @@ function addMessageToUI(messageData, isOwn, prepend = false) {
         messageContent = messageData.content;
     }
     
-    // Read receipt indicator for own messages
-    let readReceipt = '';
-    if (isOwn) {
-        if (messageData.read_by && messageData.read_by.length > 0) {
-            readReceipt = '<i class="fas fa-check-double text-primary" title="Read"></i>';
-        } else {
-            readReceipt = '<i class="fas fa-check text-muted" title="Sent"></i>';
-        }
-    }
-    
     const messageActions = isOwn ? `
         <div class="message-actions" style="display: none;">
             ${messageData.message_type === 'TEXT' ? `
                 <button class="btn btn-xs btn-outline-secondary me-1" 
-                        onclick="editMessage('${messageData.message_id || messageData.id}', '${messageData.content ? messageData.content.replace(/'/g, "\\'") : ''}')">
+                        onclick="editMessage('${messageData.message_id}', '${messageData.content ? messageData.content.replace(/'/g, "\\'") : ''}')">
                     <i class="fas fa-edit"></i>
                 </button>
             ` : ''}
             <button class="btn btn-xs btn-outline-danger" 
-                    onclick="deleteMessage('${messageData.message_id || messageData.id}')">
+                    onclick="deleteMessage('${messageData.message_id}')">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
     ` : '';
     
     const messageHTML = `
-        <div class="message-bubble ${messageClass}" data-message-id="${messageData.message_id || messageData.id}">
+        <div class="message-bubble ${messageClass}" data-message-id="${messageData.message_id}">
             ${username}
             <div class="message-content">${messageContent}</div>
-            <div class="message-footer d-flex align-items-center justify-content-between">
-                <small class="text-muted message-time">
-                    ${messageData.formatted_time || messageData.timestamp}
-                    ${messageData.edited ? '<i class="fas fa-edit ms-1" title="Edited"></i>' : ''}
-                </small>
-                ${readReceipt ? `<div class="read-receipt">${readReceipt}</div>` : ''}
-            </div>
+            <small class="text-muted message-time">${messageData.timestamp}</small>
             ${messageActions}
         </div>
     `;
     
-    if (prepend) {
-        $('#messages-container').prepend(messageHTML);
-    } else {
-        $('#messages-container').append(messageHTML);
-        
-        if (isAtBottom) {
-            scrollToBottom();
-        }
+    $('#messages-container').append(messageHTML);
+    
+    if (isAtBottom) {
+        scrollToBottom();
     }
 }
 
@@ -651,43 +469,27 @@ function scrollToBottom() {
 }
 
 function refreshMessages() {
-    $.get('{% url "get_chat_messages" chat.id %}', {
-        page: 1,
-        limit: 20
-    }, function(data) {
-        // Only add new messages, don't reload all
-        const currentMessageIds = $('#messages-container .message-bubble').map(function() {
+    $.get('{% url "get_chat_messages" chat.id %}', function(data) {
+        const currentMessages = $('#messages-container .message-bubble').map(function() {
             return $(this).data('message-id');
         }).get();
         
-        let newMessages = [];
-        data.messages.forEach(function(item) {
-            if (item.type === 'message' && !currentMessageIds.includes(item.id)) {
-                newMessages.push(item);
+        data.messages.forEach(function(message) {
+            if (!currentMessages.includes(message.id)) {
+                addMessageToUI({
+                    message_id: message.id,
+                    content: message.content,
+                    username: message.username,
+                    timestamp: new Date(message.timestamp).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }),
+                    message_type: message.message_type,
+                    file_url: message.file_url,
+                    file_name: message.file_name
+                }, message.is_own);
             }
         });
-        
-        newMessages.forEach(function(message) {
-            addMessageToUI(message, message.is_own);
-        });
-        
-        // Update read receipts for existing messages
-        updateReadReceipts(data.messages);
-    });
-}
-
-function updateReadReceipts(messages) {
-    messages.forEach(function(message) {
-        if (message.type === 'message' && message.is_own) {
-            const messageElement = $(`.message-bubble[data-message-id="${message.id}"]`);
-            const readReceiptElement = messageElement.find('.read-receipt');
-            
-            if (message.read_by && message.read_by.length > 0) {
-                readReceiptElement.html('<i class="fas fa-check-double text-primary" title="Read"></i>');
-            } else {
-                readReceiptElement.html('<i class="fas fa-check text-muted" title="Sent"></i>');
-            }
-        }
     });
 }
 
@@ -708,15 +510,13 @@ function saveEditedMessage() {
     
     $.post('{% url "edit_message" %}', {
         'message_id': messageId,
-        'content': newContent,
-        'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+        'content': newContent
     }, function(response) {
         if (response.success) {
             // Update message in UI
             const messageElement = $(`.message-bubble[data-message-id="${messageId}"]`);
             messageElement.find('.message-content').text(response.content);
-            const timeElement = messageElement.find('.message-time');
-            timeElement.html(`${response.edited_at} <i class="fas fa-edit ms-1" title="Edited"></i>`);
+            messageElement.find('.message-time').html(`${response.edited_at} <i class="fas fa-edit ms-1" title="Edited"></i>`);
             
             $('#editMessageModal').modal('hide');
         } else {
@@ -728,8 +528,7 @@ function saveEditedMessage() {
 function deleteMessage(messageId) {
     if (confirm('Are you sure you want to delete this message?')) {
         $.post('{% url "delete_message" %}', {
-            'message_id': messageId,
-            'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            'message_id': messageId
         }, function(response) {
             if (response.success) {
                 // Update the message to show it's deleted instead of removing it
@@ -737,7 +536,6 @@ function deleteMessage(messageId) {
                 messageElement.addClass('message-deleted');
                 messageElement.find('.message-content').html(`<em class="text-muted">${response.deleted_content}</em>`);
                 messageElement.find('.message-actions').remove(); // Remove action buttons
-                messageElement.find('.read-receipt').remove(); // Remove read receipt
             } else {
                 alert('Error deleting message: ' + response.message);
             }

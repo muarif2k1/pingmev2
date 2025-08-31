@@ -31,6 +31,7 @@ urlpatterns = [
     path('send-message/', views.send_message, name='send_message'),
     path('delete-message/', views.delete_message, name='delete_message'),
     path('edit-message/', views.edit_message, name='edit_message'),
+    path('mark-message-read/', views.mark_message_as_read, name='mark_message_as_read'),
     
     # API URLs
     path('api/chat/<uuid:chat_id>/messages/', views.get_chat_messages, name='get_chat_messages'),

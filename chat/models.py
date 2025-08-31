@@ -226,6 +226,14 @@ class Message(models.Model):
         related_name='deleted_messages',
         help_text="User who deleted this message"
     )
+    
+    # New field for read receipts
+    read_by = models.ManyToManyField(
+        User, 
+        through='MessageReadReceipt',
+        related_name='read_messages',
+        blank=True
+    )
 
     def soft_delete(self, deleted_by_user=None):
         """Enhanced soft delete with user information"""
@@ -244,6 +252,22 @@ class Message(models.Model):
         self.edited = True
         self.edited_at = timezone.now()
         self.save()
+
+    def mark_as_read(self, user):
+        """Mark message as read by a user"""
+        if user != self.user:  # Don't mark own messages as read
+            MessageReadReceipt.objects.get_or_create(
+                message=self,
+                user=user
+            )
+    
+    def get_read_by_users(self):
+        """Get users who have read this message (excluding sender)"""
+        return self.read_by.exclude(id=self.user_id)
+    
+    def is_read_by(self, user):
+        """Check if message has been read by specific user"""
+        return self.read_receipts.filter(user=user).exists()
 
     def __str__(self):
         if self.is_deleted:
@@ -277,7 +301,7 @@ class Message(models.Model):
     def get_file_name(self):
         """Get the original filename for file messages"""
         if self.message_type == 'FILE' and self.file:
-            return self.file.name.split('/')[-1]  # Get filename without path
+            return self.file.name.split('/')[-1]
         elif self.message_type == 'IMAGE' and self.image:
             return self.image.name.split('/')[-1]
         return None
@@ -290,6 +314,8 @@ class Message(models.Model):
             return self.image.size
         return None
 
+
+# Update the MessageReadReceipt model:
 class MessageReadReceipt(models.Model):
     message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='read_receipts')
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -299,9 +325,39 @@ class MessageReadReceipt(models.Model):
         unique_together = ('message', 'user')
         verbose_name = "Read Receipt"
         verbose_name_plural = "Read Receipts"
+        indexes = [
+            models.Index(fields=['message', 'user']),
+            models.Index(fields=['read_at']),
+        ]
 
     def __str__(self):
-        return f"{self.user.username} read at {self.read_at}"
+        return f"{self.user.username} read message from {self.message.user.username} at {self.read_at}"
+
+
+# Add a utility model for efficient read tracking
+class ChatReadStatus(models.Model):
+    """Track the last read message for each user in each chat"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    private_chat = models.ForeignKey(PrivateChat, on_delete=models.CASCADE, null=True, blank=True)
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, null=True, blank=True)
+    last_read_message = models.ForeignKey(Message, on_delete=models.CASCADE)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = [
+            ('user', 'private_chat'),
+            ('user', 'room'),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'private_chat']),
+            models.Index(fields=['user', 'room']),
+            models.Index(fields=['updated_at']),
+        ]
+    
+    def __str__(self):
+        chat_name = self.private_chat or self.room
+        return f"{self.user.username}'s last read in {chat_name}"
+
 
 class RoomParticipant(models.Model):
     ROLE_CHOICES = [

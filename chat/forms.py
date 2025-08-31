@@ -104,17 +104,6 @@ class RoomCreationForm(forms.ModelForm):
             raise forms.ValidationError("A room with this name already exists.")
         return name
 
-# class MessageForm(forms.ModelForm):
-#     class Meta:
-#         model = Message
-#         fields = ['content']
-#         widgets = {
-#             'content': forms.TextInput(attrs={
-#                 'class': 'form-control',
-#                 'placeholder': 'Type your message...',
-#                 'autocomplete': 'off'
-#             })
-#         }
 
 class SearchUserForm(forms.Form):
     query = forms.CharField(

@@ -17,6 +17,8 @@ from django.http import FileResponse, Http404
 from django.conf import settings
 import json
 import os
+from datetime import datetime, date, timedelta
+
 
 def media_serve(request, path):
     full_path = os.path.join(settings.MEDIA_ROOT, path)
@@ -172,27 +174,6 @@ def search_users(request):
     
     return render(request, 'chat/search_users.html', {'users': users, 'query': query})
 
-# @require_POST
-# @login_required
-# def send_friend_request(request):
-#     user_id = request.POST.get('user_id')
-#     target_user = get_object_or_404(User, id=user_id)
-    
-#     # Check if friendship already exists
-#     existing = Friendship.objects.filter(
-#         Q(from_user=request.user.profile, to_user=target_user.profile) |
-#         Q(from_user=target_user.profile, to_user=request.user.profile)
-#     ).first()
-    
-#     if existing:
-#         return JsonResponse({'success': False, 'message': 'Friendship already exists'})
-    
-#     friendship = Friendship.objects.create(
-#         from_user=request.user.profile,
-#         to_user=target_user.profile
-#     )
-    
-#     return JsonResponse({'success': True, 'message': 'Friend request sent!'})
 
 @require_POST
 @login_required
@@ -259,11 +240,6 @@ def respond_friend_request(request):
 def private_chat_view(request, user_id):
     other_user = get_object_or_404(User, id=user_id)
     
-    # Check if users are friends or allow any user to chat
-    # if not request.user.profile.are_friends(other_user.profile):
-    #     messages.error(request, 'You can only chat with friends!')
-    #     return redirect('dashboard')
-    
     chat, created = PrivateChat.get_or_create_chat(request.user, other_user)
     
     # Get or create chat participant for current user
@@ -272,10 +248,21 @@ def private_chat_view(request, user_id):
         user=request.user
     )
     
-    # Get messages
-    messages_list = chat.messages.filter(is_deleted=False).order_by('timestamp')
+    # Get messages with read receipts prefetched
+    messages_list = chat.messages.filter(is_deleted=False).prefetch_related(
+        'read_receipts__user'
+    ).order_by('timestamp')
     
-    # Mark as read
+    # Mark messages as read
+    unread_messages = messages_list.exclude(user=request.user).exclude(
+        read_receipts__user=request.user
+    )
+    
+    # Bulk mark as read
+    for message in unread_messages:
+        message.mark_as_read(request.user)
+    
+    # Update last read timestamp
     participant.last_read = timezone.now()
     participant.save()
     
@@ -326,8 +313,19 @@ def room_view(request, room_id):
         defaults={'role': 'admin' if room.creator == request.user else 'member'}
     )
     
-    # Get messages
-    messages_list = room.messages.filter(is_deleted=False).order_by('timestamp')
+    # Get messages with read receipts prefetched
+    messages_list = room.messages.filter(is_deleted=False).prefetch_related(
+        'read_receipts__user'
+    ).order_by('timestamp')
+    
+    # Mark messages as read
+    unread_messages = messages_list.exclude(user=request.user).exclude(
+        read_receipts__user=request.user
+    )
+    
+    # Bulk mark as read
+    for message in unread_messages:
+        message.mark_as_read(request.user)
     
     # Update last read
     participant.last_read = timezone.now()
@@ -489,18 +487,60 @@ def get_chat_messages(request, chat_id):
     if not (chat.user1 == request.user or chat.user2 == request.user):
         return JsonResponse({'error': 'Access denied'}, status=403)
     
-    messages_list = chat.messages.filter(is_deleted=False).order_by('timestamp')
+    # Get pagination parameters
+    page = int(request.GET.get('page', 1))
+    limit = int(request.GET.get('limit', 50))
+    offset = (page - 1) * limit
+    
+    # Get messages with read receipts
+    messages_queryset = chat.messages.filter(is_deleted=False).prefetch_related(
+        'read_receipts__user'
+    ).order_by('-timestamp')
+    
+    total_messages = messages_queryset.count()
+    messages_list = list(messages_queryset[offset:offset + limit])
+    messages_list.reverse()  # Reverse to get chronological order
     
     messages_data = []
+    current_date = None
+    
     for msg in messages_list:
+        message_date = msg.timestamp.date()
+        
+        # Add date header if date changed
+        if current_date != message_date:
+            current_date = message_date
+            date_label = get_date_label(message_date)
+            messages_data.append({
+                'type': 'date_header',
+                'date': message_date.isoformat(),
+                'label': date_label
+            })
+        
+        # Get read receipt info
+        read_by_users = []
+        if msg.user != request.user:  # Only show read receipts for messages not sent by current user
+            read_receipts = msg.read_receipts.exclude(user=request.user)
+            read_by_users = [
+                {
+                    'username': receipt.user.username,
+                    'read_at': receipt.read_at.isoformat()
+                }
+                for receipt in read_receipts
+            ]
+        
         message_data = {
+            'type': 'message',
             'id': str(msg.id),
             'content': msg.content,
             'username': msg.user.username,
-            'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp': msg.timestamp.isoformat(),
+            'formatted_time': msg.timestamp.strftime('%H:%M'),
             'is_own': msg.user == request.user,
             'edited': msg.edited,
-            'message_type': msg.message_type
+            'message_type': msg.message_type,
+            'read_by': read_by_users,
+            'is_read': msg.is_read_by(request.user) if msg.user != request.user else True
         }
         
         # Add file information
@@ -513,7 +553,19 @@ def get_chat_messages(request, chat_id):
         
         messages_data.append(message_data)
     
-    return JsonResponse({'messages': messages_data})
+    # Mark new messages as read
+    unread_messages = chat.messages.filter(is_deleted=False).exclude(
+        user=request.user
+    ).exclude(read_receipts__user=request.user)
+    
+    for message in unread_messages:
+        message.mark_as_read(request.user)
+    
+    return JsonResponse({
+        'messages': messages_data,
+        'has_more': offset + limit < total_messages,
+        'total': total_messages
+    })
 
 
 @login_required
@@ -527,18 +579,64 @@ def get_room_messages(request, room_id):
     ):
         return JsonResponse({'error': 'Access denied'}, status=403)
     
-    messages_list = room.messages.filter(is_deleted=False).order_by('timestamp')
+    # Get pagination parameters
+    page = int(request.GET.get('page', 1))
+    limit = int(request.GET.get('limit', 50))
+    offset = (page - 1) * limit
+    
+    # Get messages with read receipts
+    messages_queryset = room.messages.filter(is_deleted=False).prefetch_related(
+        'read_receipts__user'
+    ).order_by('-timestamp')
+    
+    total_messages = messages_queryset.count()
+    messages_list = list(messages_queryset[offset:offset + limit])
+    messages_list.reverse()  # Reverse to get chronological order
     
     messages_data = []
+    current_date = None
+    
     for msg in messages_list:
+        message_date = msg.timestamp.date()
+        
+        # Add date header if date changed
+        if current_date != message_date:
+            current_date = message_date
+            date_label = get_date_label(message_date)
+            messages_data.append({
+                'type': 'date_header',
+                'date': message_date.isoformat(),
+                'label': date_label
+            })
+        
+        # Get read receipt info for room messages
+        read_by_users = []
+        read_count = 0
+        if msg.user != request.user:
+            read_receipts = msg.read_receipts.exclude(user=request.user)
+            read_count = read_receipts.count()
+            # Only show first few readers to avoid cluttering
+            read_by_users = [
+                {
+                    'username': receipt.user.username,
+                    'read_at': receipt.read_at.isoformat()
+                }
+                for receipt in read_receipts[:3]  # Show only first 3
+            ]
+        
         message_data = {
+            'type': 'message',
             'id': str(msg.id),
             'content': msg.content,
             'username': msg.user.username,
-            'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp': msg.timestamp.isoformat(),
+            'formatted_time': msg.timestamp.strftime('%H:%M'),
             'is_own': msg.user == request.user,
             'edited': msg.edited,
-            'message_type': msg.message_type
+            'message_type': msg.message_type,
+            'read_by': read_by_users,
+            'read_count': read_count,
+            'is_read': msg.is_read_by(request.user) if msg.user != request.user else True
         }
         
         # Add file information
@@ -551,7 +649,19 @@ def get_room_messages(request, room_id):
         
         messages_data.append(message_data)
     
-    return JsonResponse({'messages': messages_data})
+    # Mark new messages as read
+    unread_messages = room.messages.filter(is_deleted=False).exclude(
+        user=request.user
+    ).exclude(read_receipts__user=request.user)
+    
+    for message in unread_messages:
+        message.mark_as_read(request.user)
+    
+    return JsonResponse({
+        'messages': messages_data,
+        'has_more': offset + limit < total_messages,
+        'total': total_messages
+    })
 
 
 
@@ -896,3 +1006,46 @@ def remove_friend(request):
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
     
+
+
+@require_POST
+@login_required
+def mark_message_as_read(request):
+    """Manually mark a message as read (for real-time updates)"""
+    message_id = request.POST.get('message_id')
+    
+    try:
+        message = get_object_or_404(Message, id=message_id)
+        
+        # Check if user has access to this message
+        if message.private_chat:
+            if not (message.private_chat.user1 == request.user or 
+                   message.private_chat.user2 == request.user):
+                return JsonResponse({'success': False, 'error': 'Access denied'})
+        elif message.room:
+            if not (message.room.creator == request.user or 
+                   message.room.participants.filter(user=request.user).exists()):
+                return JsonResponse({'success': False, 'error': 'Access denied'})
+        
+        # Mark as read
+        message.mark_as_read(request.user)
+        
+        return JsonResponse({'success': True})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+def get_date_label(message_date):
+    """Get user-friendly date label like 'Today', 'Yesterday', etc."""
+    today = date.today()
+    
+    if message_date == today:
+        return "Today"
+    elif message_date == today - timedelta(days=1):
+        return "Yesterday"
+    elif message_date > today - timedelta(days=7):
+        return message_date.strftime("%A")  # Day name like "Monday"
+    elif message_date.year == today.year:
+        return message_date.strftime("%B %d")  # Like "January 15"
+    else:
+        return message_date.strftime("%B %d, %Y")  # Like "January 15, 2023"
