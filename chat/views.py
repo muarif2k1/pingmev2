@@ -507,8 +507,8 @@ def get_chat_messages(request, chat_id):
     limit = int(request.GET.get('limit', 50))
     offset = (page - 1) * limit
     
-    # Get messages with read receipts
-    messages_queryset = chat.messages.filter(is_deleted=False).prefetch_related(
+    # Get messages including deleted ones (they should remain visible)
+    messages_queryset = chat.messages.prefetch_related(
         'read_receipts__user'
     ).order_by('-timestamp')
     
@@ -518,6 +518,7 @@ def get_chat_messages(request, chat_id):
     
     messages_data = []
     current_date = None
+    other_user = chat.get_other_user(request.user)
     
     for msg in messages_list:
         message_date = msg.timestamp.date()
@@ -532,23 +533,20 @@ def get_chat_messages(request, chat_id):
                 'label': date_label
             })
         
-        # Get read receipt info
+        # Get read receipt info - fix the double tick to single tick issue
         read_by_users = []
-        is_read = False
-        if msg.user != request.user:
-            read_receipts = msg.read_receipts.exclude(user=request.user)
-            is_read = msg.read_receipts.filter(user=request.user).exists()
-            read_by_users = [
-                {
-                    'username': receipt.user.username,
-                    'read_at': receipt.read_at.isoformat()
-                }
-                for receipt in read_receipts
-            ]
-        else:
+        is_read_by_other = False
+        
+        if msg.user == request.user:
             # For own messages, check if other user has read it
-            other_user = chat.get_other_user(request.user)
-            is_read = msg.read_receipts.filter(user=other_user).exists()
+            is_read_by_other = msg.read_receipts.filter(user=other_user).exists()
+            if is_read_by_other:
+                read_receipt = msg.read_receipts.filter(user=other_user).first()
+                if read_receipt:
+                    read_by_users = [{
+                        'username': other_user.username,
+                        'read_at': read_receipt.read_at.isoformat()
+                    }]
         
         message_data = {
             'type': 'message',
@@ -561,7 +559,7 @@ def get_chat_messages(request, chat_id):
             'edited': msg.edited,
             'message_type': msg.message_type,
             'read_by': read_by_users,
-            'is_read': is_read,
+            'is_read_by_other': is_read_by_other,
             'is_deleted': msg.is_deleted
         }
         
@@ -575,13 +573,14 @@ def get_chat_messages(request, chat_id):
         
         messages_data.append(message_data)
     
-    # Mark new messages as read
-    unread_messages = chat.messages.filter(is_deleted=False).exclude(
-        user=request.user
-    ).exclude(read_receipts__user=request.user)
-    
-    for message in unread_messages:
-        message.mark_as_read(request.user)
+    # Only mark messages as read if this is the first page (recent messages)
+    if page == 1:
+        unread_messages = chat.messages.exclude(
+            user=request.user
+        ).exclude(read_receipts__user=request.user)
+        
+        for message in unread_messages:
+            message.mark_as_read(request.user)
     
     return JsonResponse({
         'messages': messages_data,
@@ -606,8 +605,8 @@ def get_room_messages(request, room_id):
     limit = int(request.GET.get('limit', 50))
     offset = (page - 1) * limit
     
-    # Get messages with read receipts
-    messages_queryset = room.messages.filter(is_deleted=False).prefetch_related(
+    # Get messages including deleted ones (they should remain visible)
+    messages_queryset = room.messages.prefetch_related(
         'read_receipts__user'
     ).order_by('-timestamp')
     
@@ -631,11 +630,12 @@ def get_room_messages(request, room_id):
                 'label': date_label
             })
         
-        # Get read receipt info for room messages
+        # Get read receipt info for room messages - fix the tick mark issue
         read_by_users = []
         read_count = 0
+        
         if msg.user == request.user:
-            # For own messages, count how many others have read it
+            # For own messages, get consistent read count
             read_receipts = msg.read_receipts.exclude(user=request.user)
             read_count = read_receipts.count()
             read_by_users = [
@@ -672,13 +672,14 @@ def get_room_messages(request, room_id):
         
         messages_data.append(message_data)
     
-    # Mark new messages as read
-    unread_messages = room.messages.filter(is_deleted=False).exclude(
-        user=request.user
-    ).exclude(read_receipts__user=request.user)
-    
-    for message in unread_messages:
-        message.mark_as_read(request.user)
+    # Only mark messages as read if this is the first page (recent messages)
+    if page == 1:
+        unread_messages = room.messages.exclude(
+            user=request.user
+        ).exclude(read_receipts__user=request.user)
+        
+        for message in unread_messages:
+            message.mark_as_read(request.user)
     
     return JsonResponse({
         'messages': messages_data,
@@ -917,7 +918,6 @@ def delete_message(request):
         if message.is_deleted:
             return JsonResponse({'success': False, 'message': 'Message already deleted'})
         
-        # Enhanced soft delete with user information
         message.is_deleted = True
         message.deleted_at = timezone.now()
         message.deleted_by = request.user

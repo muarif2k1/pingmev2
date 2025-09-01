@@ -15,25 +15,26 @@
                         </a>
                         <div class="position-relative me-3">
                             {% if other_user.profile.profile_photo %}
-                                <img src="{{ other_user.profile.profile_photo.url }}" 
-                                     class="user-avatar" alt="Avatar">
+                            <img src="{{ other_user.profile.profile_photo.url }}" class="user-avatar" alt="Avatar">
                             {% else %}
-                                <div class="user-avatar bg-primary d-flex align-items-center justify-content-center text-white">
-                                    {{ other_user.username|first|upper }}
-                                </div>
+                            <div
+                                class="user-avatar bg-primary d-flex align-items-center justify-content-center text-white">
+                                {{ other_user.username|first|upper }}
+                            </div>
                             {% endif %}
                             {% if other_user.profile.online %}
-                                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle">
-                                </span>
+                            <span
+                                class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle">
+                            </span>
                             {% endif %}
                         </div>
                         <div>
                             <h5 class="mb-0">{{ other_user.get_full_name|default:other_user.username }}</h5>
                             <small class="text-muted">
                                 {% if other_user.profile.online %}
-                                    <i class="fas fa-circle text-success me-1"></i>Online
+                                <i class="fas fa-circle text-success me-1"></i>Online
                                 {% else %}
-                                    Last seen {{ other_user.profile.last_activity|timesince }} ago
+                                Last seen {{ other_user.profile.last_activity|timesince }} ago
                                 {% endif %}
                             </small>
                         </div>
@@ -52,102 +53,103 @@
                     <div id="loading-indicator" class="text-center py-3" style="display: none;">
                         <i class="fas fa-spinner fa-spin"></i> Loading more messages...
                     </div>
-                    
+
                     {% if chat_messages %}
-                        {% load humanize %}
-                        {% for message in chat_messages %}
-                            {% ifchanged message.timestamp.date %}
-                                <div class="date-header">
-                                    <span class="date-label">
-                                        {% if message.timestamp.date == today %}
-                                            Today
-                                        {% elif message.timestamp.date == yesterday %}
-                                            Yesterday
-                                        {% else %}
-                                            {{ message.timestamp|date:"F d, Y" }}
-                                        {% endif %}
-                                    </span>
-                                </div>
-                            {% endifchanged %}
-                            
-                            <div class="message-bubble {% if message.user == user %}message-own{% else %}message-other{% endif %} {% if message.is_deleted %}message-deleted{% endif %}" 
-                                 data-message-id="{{ message.id }}">
-                                {% if message.user != user %}
-                                    <small class="text-muted">{{ message.user.username }}</small><br>
-                                {% endif %}
-                                
-                                <!-- Message Content -->
-                                <div class="message-content">
-                                    {% if message.is_deleted %}
-                                        <em class="text-muted">{{ message.content }}</em>
-                                    {% elif message.message_type == 'TEXT' %}
-                                        {{ message.content }}
-                                    {% elif message.message_type == 'IMAGE' %}
-                                        <div class="message-image">
-                                            <img src="{{ message.image.url }}" class="img-fluid rounded" 
-                                                 style="max-width: 300px; max-height: 200px; cursor: pointer;"
-                                                 onclick="showImageModal('{{ message.image.url }}', '{{ message.user.username }}')" alt="Image">
-                                            {% if message.content %}
-                                                <div class="mt-2">{{ message.content }}</div>
-                                            {% endif %}
-                                        </div>
-                                    {% elif message.message_type == 'FILE' %}
-                                        <div class="message-file">
-                                            <i class="fas fa-file me-2"></i>
-                                            <a href="{{ message.file.url }}" download class="text-decoration-none">
-                                                {{ message.file.name|slice:"13:" }}
-                                            </a>
-                                            <small class="text-muted d-block">
-                                                {{ message.file.size|filesizeformat }}
-                                            </small>
-                                            {% if message.content %}
-                                                <div class="mt-2">{{ message.content }}</div>
-                                            {% endif %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                                
-                                <div class="message-footer d-flex align-items-center justify-content-between">
-                                    <small class="text-muted message-time">
-                                        {{ message.timestamp|date:"H:i" }}
-                                        {% if message.edited %}
-                                            <i class="fas fa-edit ms-1" title="Edited"></i>
-                                        {% endif %}
-                                    </small>
-                                    
-                                    <!-- Read Receipt for own messages -->
-                                    {% if message.user == user and not message.is_deleted %}
-                                        <div class="read-receipt">
-                                            {% if message.read_receipts.exists %}
-                                                <i class="fas fa-check-double text-primary" title="Read"></i>
-                                            {% else %}
-                                                <i class="fas fa-check text-muted" title="Sent"></i>
-                                            {% endif %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                                
-                                {% if message.user == user and not message.is_deleted %}
-                                    <div class="message-actions" style="display: none;">
-                                        {% if message.message_type == 'TEXT' %}
-                                            <button class="btn btn-xs btn-outline-secondary me-1" 
-                                                    onclick="editMessage('{{ message.id }}', '{{ message.content|escapejs }}')">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                        {% endif %}
-                                        <button class="btn btn-xs btn-outline-danger" 
-                                                onclick="deleteMessage('{{ message.id }}')">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
+                    {% load humanize %}
+                    {% for message in chat_messages %}
+                    {% ifchanged message.timestamp.date %}
+                    <div class="date-header">
+                        <span class="date-label">
+                            {% if message.timestamp.date == today %}
+                            Today
+                            {% elif message.timestamp.date == yesterday %}
+                            Yesterday
+                            {% else %}
+                            {{ message.timestamp|date:"F d, Y" }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endifchanged %}
+
+                    <div class="message-bubble {% if message.user == user %}message-own{% else %}message-other{% endif %} {% if message.is_deleted %}message-deleted{% endif %}"
+                        data-message-id="{{ message.id }}">
+                        {% if message.user != user %}
+                        <small class="text-muted">{{ message.user.username }}</small><br>
+                        {% endif %}
+
+                        <!-- Message Content - FIXED: Always show deleted messages -->
+                        <div class="message-content">
+                            {% if message.is_deleted %}
+                            <em class="text-muted">{{ message.content|default:"This message was deleted" }}</em>
+                            {% elif message.message_type == 'TEXT' %}
+                            {{ message.content }}
+                            {% elif message.message_type == 'IMAGE' %}
+                            <div class="message-image">
+                                <img src="{{ message.image.url }}" class="img-fluid rounded"
+                                    style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                                    onclick="showImageModal('{{ message.image.url }}', '{{ message.user.username }}')"
+                                    alt="Image">
+                                {% if message.content %}
+                                <div class="mt-2">{{ message.content }}</div>
                                 {% endif %}
                             </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="text-center py-5">
-                            <i class="fas fa-comments fa-3x text-muted mb-3"></i>
-                            <p class="text-muted">No messages yet. Start the conversation!</p>
+                            {% elif message.message_type == 'FILE' %}
+                            <div class="message-file">
+                                <i class="fas fa-file me-2"></i>
+                                <a href="{{ message.file.url }}" download class="text-decoration-none">
+                                    {{ message.file.name|slice:"13:" }}
+                                </a>
+                                <small class="text-muted d-block">
+                                    {{ message.file.size|filesizeformat }}
+                                </small>
+                                {% if message.content %}
+                                <div class="mt-2">{{ message.content }}</div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
                         </div>
+
+                        <div class="message-footer d-flex align-items-center justify-content-between">
+                            <small class="text-muted message-time">
+                                {{ message.timestamp|date:"H:i" }}
+                                {% if message.edited %}
+                                <i class="fas fa-edit ms-1" title="Edited"></i>
+                                {% endif %}
+                            </small>
+
+                            <!-- Read Receipt for own messages - Don't show for deleted messages -->
+                            {% if message.user == user and not message.is_deleted %}
+                            <div class="read-receipt">
+                                {% if message.read_receipts.exists %}
+                                <i class="fas fa-check-double text-primary" title="Read"></i>
+                                {% else %}
+                                <i class="fas fa-check text-muted" title="Sent"></i>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Message Actions - Only for own non-deleted messages -->
+                        {% if message.user == user and not message.is_deleted %}
+                        <div class="message-actions" style="display: none;">
+                            {% if message.message_type == 'TEXT' %}
+                            <button class="btn btn-xs btn-outline-secondary me-1"
+                                onclick="editMessage('{{ message.id }}', '{{ message.content|escapejs }}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            {% endif %}
+                            <button class="btn btn-xs btn-outline-danger" onclick="deleteMessage('{{ message.id }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No messages yet. Start the conversation!</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -158,21 +160,25 @@
                     {% csrf_token %}
                     <input type="hidden" name="type" value="private">
                     <input type="hidden" name="chat_id" value="{{ chat.id }}">
-                    
+
                     <!-- File attachments (hidden inputs) -->
-                    <input type="file" id="image-input" name="image" accept="image/*" style="display: none;" onchange="handleFileSelect('image')">
-                    <input type="file" id="file-input" name="file" style="display: none;" onchange="handleFileSelect('file')">
-                    
+                    <input type="file" id="image-input" name="image" accept="image/*" style="display: none;"
+                        onchange="handleFileSelect('image')">
+                    <input type="file" id="file-input" name="file" style="display: none;"
+                        onchange="handleFileSelect('file')">
+
                     <!-- Attachment buttons with improved mobile layout -->
                     <div class="attachment-buttons me-2 d-flex">
-                        <button type="button" class="btn btn-outline-secondary btn-sm attachment-btn" onclick="document.getElementById('image-input').click()" title="Send Image">
+                        <button type="button" class="btn btn-outline-secondary btn-sm attachment-btn"
+                            onclick="document.getElementById('image-input').click()" title="Send Image">
                             <i class="fas fa-image"></i>
                         </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm attachment-btn" onclick="document.getElementById('file-input').click()" title="Send File">
+                        <button type="button" class="btn btn-outline-secondary btn-sm attachment-btn"
+                            onclick="document.getElementById('file-input').click()" title="Send File">
                             <i class="fas fa-paperclip"></i>
                         </button>
                     </div>
-                    
+
                     <!-- File preview area -->
                     <div id="file-preview" class="me-2" style="display: none;">
                         <div class="d-flex align-items-center bg-light rounded p-2">
@@ -182,11 +188,11 @@
                             </button>
                         </div>
                     </div>
-                    
+
                     <div class="flex-grow-1 me-2">
                         <div class="input-group">
-                            <input type="text" class="form-control" name="content" 
-                                   placeholder="Type your message..." autocomplete="off">
+                            <input type="text" class="form-control" name="content" placeholder="Type your message..."
+                                autocomplete="off">
                             <button type="submit" class="btn btn-custom">
                                 <i class="fas fa-paper-plane"></i>
                             </button>
@@ -264,14 +270,14 @@
         scroll-behavior: smooth;
         overflow-y: auto;
     }
-    
+
     /* Date header styles */
     .date-header {
         text-align: center;
         margin: 20px 0;
         position: relative;
     }
-    
+
     .date-header::before {
         content: '';
         position: absolute;
@@ -282,7 +288,7 @@
         background: #dee2e6;
         z-index: 1;
     }
-    
+
     .date-label {
         background: white;
         padding: 5px 15px;
@@ -294,30 +300,30 @@
         border-radius: 15px;
         border: 1px solid #dee2e6;
     }
-    
+
     /* Message footer styles */
     .message-footer {
         margin-top: 5px;
     }
-    
+
     /* Read receipt styles */
     .read-receipt {
         font-size: 0.75rem;
     }
-    
+
     .read-receipt .fa-check-double {
         color: #0d6efd;
     }
-    
+
     .read-receipt .fa-check {
         color: #6c757d;
     }
-    
+
     /* File preview styles */
     .message-image img {
         border-radius: 8px;
     }
-    
+
     .message-file {
         background-color: #f8f9fa;
         padding: 10px;
@@ -334,13 +340,13 @@
         font-style: italic;
         color: #6c757d;
     }
-    
+
     /* Improved attachment buttons layout for mobile */
     .attachment-buttons {
         flex-wrap: nowrap;
         gap: 4px;
     }
-    
+
     .attachment-btn {
         min-width: 36px;
         min-height: 36px;
@@ -350,7 +356,7 @@
         justify-content: center;
         white-space: nowrap;
     }
-    
+
     /* Loading indicator */
     #loading-indicator {
         position: sticky;
@@ -359,34 +365,34 @@
         z-index: 10;
         border-bottom: 1px solid #dee2e6;
     }
-    
+
     /* Mobile-specific improvements */
     @media (max-width: 480px) {
         .attachment-buttons {
             gap: 2px;
         }
-        
+
         .attachment-btn {
             min-width: 32px;
             min-height: 32px;
             padding: 4px 6px;
             font-size: 0.875rem;
         }
-        
+
         .me-2 {
             margin-right: 0.25rem !important;
         }
-        
+
         #file-preview .small {
             font-size: 0.75rem !important;
         }
-        
+
         .date-label {
             padding: 3px 10px;
             font-size: 0.75rem;
         }
     }
-    
+
     /* Ensure buttons stay side by side even on very small screens */
     @media (max-width: 360px) {
         .attachment-btn {
@@ -394,7 +400,7 @@
             min-height: 30px;
             padding: 3px 5px;
         }
-        
+
         .attachment-btn i {
             font-size: 0.8rem;
         }
@@ -404,218 +410,252 @@
 
 {% block extra_js %}
 <script>
-// Define URL variables for JavaScript
-const sendMessageUrl = '{% url "send_message" %}';
-const editMessageUrl = '{% url "edit_message" %}';
-const deleteMessageUrl = '{% url "delete_message" %}';
-const getChatMessagesUrl = '{% url "get_chat_messages" chat.id %}';
+    // Define URL variables for JavaScript
+    const sendMessageUrl = '{% url "send_message" %}';
+    const editMessageUrl = '{% url "edit_message" %}';
+    const deleteMessageUrl = '{% url "delete_message" %}';
+    const getChatMessagesUrl = '{% url "get_chat_messages" chat.id %}';
 </script>
-<script>
-// Template context variables
-const today = new Date('{{ today|date:"Y-m-d" }}');
-const yesterday = new Date('{{ yesterday|date:"Y-m-d" }}');
-const currentUserId = '{{ user.id }}';
-const currentUsername = '{{ user.username|escapejs }}';
-</script>
-<script>
-// Fixed JavaScript functions for both room and private chat
-let isAtBottom = true;
-let currentPage = 1;
-let isLoading = false;
-let hasMoreMessages = true;
-let selectedUsers = new Set();
 
-$(document).ready(function() {
-    // Scroll to bottom initially
-    scrollToBottom();
-    
-    // Check if user is at bottom when scrolling
-    const container = $('#messages-container')[0];
-    $(container).on('scroll', function() {
-        isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 1;
-        
-        // Load more messages when scrolling to top
-        if (container.scrollTop === 0 && hasMoreMessages && !isLoading) {
-            loadMoreMessages();
-        }
-    });
-    
-    // Handle message form submission
-    $('#message-form').on('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        const content = formData.get('content');
-        const hasFile = formData.get('image') && formData.get('image').size > 0;
-        const hasAttachment = formData.get('file') && formData.get('file').size > 0;
-        
-        if (!content.trim() && !hasFile && !hasAttachment) {
-            return;
-        }
-        
-        // Show loading state
-        const submitBtn = $(this).find('button[type="submit"]');
-        const originalText = submitBtn.html();
-        submitBtn.html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
-        
-        $.ajax({
-            url: sendMessageUrl, // Make sure this is defined in template
-            method: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) {
-                if (response.success) {
-                    // Add message to UI
-                    addMessageToUI(response, true);
-                    // Clear form
-                    $('#message-form input[name="content"]').val('');
-                    clearFileSelection();
-                } else {
-                    alert('Error sending message: ' + (response.message || 'Unknown error'));
+<script>
+    // Template context variables
+    const today = new Date('{{ today|date:"Y-m-d" }}');
+    const yesterday = new Date('{{ yesterday|date:"Y-m-d" }}');
+    const currentUserId = '{{ user.id }}';
+    const currentUsername = '{{ user.username|escapejs }}';
+</script>
+
+<script>
+    // Fixed JavaScript functions for both room and private chat
+    let isAtBottom = true;
+    let currentPage = 1;
+    let isLoading = false;
+    let hasMoreMessages = true;
+    let selectedUsers = new Set();
+    let loadedMessageIds = new Set(); // Track loaded messages to prevent duplicates
+
+    $(document).ready(function () {
+        // Initialize loaded message IDs from existing messages
+        $('#messages-container .message-bubble').each(function () {
+            const messageId = $(this).data('message-id');
+            if (messageId) {
+                loadedMessageIds.add(messageId.toString());
+            }
+        });
+
+        // Scroll to bottom initially
+        scrollToBottom();
+
+        // Check if user is at bottom when scrolling
+        const container = $('#messages-container')[0];
+        $(container).on('scroll', function () {
+            isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 1;
+
+            // Load more messages when scrolling to top
+            if (container.scrollTop === 0 && hasMoreMessages && !isLoading) {
+                loadMoreMessages();
+            }
+        });
+
+        // Handle message form submission
+        $('#message-form').on('submit', function (e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const content = formData.get('content');
+            const hasFile = formData.get('image') && formData.get('image').size > 0;
+            const hasAttachment = formData.get('file') && formData.get('file').size > 0;
+
+            if (!content.trim() && !hasFile && !hasAttachment) {
+                return;
+            }
+
+            // Show loading state
+            const submitBtn = $(this).find('button[type="submit"]');
+            const originalText = submitBtn.html();
+            submitBtn.html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
+
+            $.ajax({
+                url: sendMessageUrl,
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    if (response.success) {
+                        // Add message to UI and track it
+                        addMessageToUI(response, true);
+                        loadedMessageIds.add(response.message_id);
+                        // Clear form
+                        $('#message-form input[name="content"]').val('');
+                        clearFileSelection();
+                    } else {
+                        alert('Error sending message: ' + (response.message || 'Unknown error'));
+                    }
+                },
+                error: function (xhr, status, error) {
+                    console.error('Send message error:', error);
+                    alert('Error sending message. Please try again.');
+                },
+                complete: function () {
+                    // Reset button state
+                    submitBtn.html(originalText).prop('disabled', false);
+                    // Focus back to input
+                    $('#message-form input[name="content"]').focus();
                 }
-            },
-            error: function(xhr, status, error) {
-                console.error('Send message error:', error);
-                alert('Error sending message. Please try again.');
-            },
-            complete: function() {
-                // Reset button state
-                submitBtn.html(originalText).prop('disabled', false);
-                // Focus back to input
-                $('#message-form input[name="content"]').focus();
+            });
+        });
+
+        // Auto-refresh messages every 5 seconds
+        setInterval(refreshMessages, 5000);
+
+        // User search on enter (for room invitations)
+        $('#user-search-input').on('keypress', function (e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                searchUsers();
             }
         });
     });
-    
-    // Auto-refresh messages every 5 seconds
-    setInterval(refreshMessages, 5000);
-    
-    // User search on enter (for room invitations)
-    $('#user-search-input').on('keypress', function(e) {
-        if (e.which === 13) {
-            e.preventDefault();
-            searchUsers();
-        }
-    });
-});
 
-function loadMoreMessages() {
-    if (isLoading || !hasMoreMessages) return;
-    
-    isLoading = true;
-    $('#loading-indicator').show();
-    
-    currentPage++;
-    
-    // Use the appropriate URL based on chat type
-    const url = typeof getRoomMessagesUrl !== 'undefined' ? getRoomMessagesUrl : getChatMessagesUrl;
-    
-    $.get(url, {
-        page: currentPage,
-        limit: 20
-    }).done(function(data) {
-        if (data.messages && data.messages.length > 0) {
-            const container = $('#messages-container');
-            const scrollHeight = container[0].scrollHeight;
-            
-            // Process messages in reverse order and add to top
-            const reversedMessages = [...data.messages].reverse();
-            let lastDateHeader = null;
-            
-            reversedMessages.forEach(function(item) {
-                if (item.type === 'date_header') {
-                    // Only add date header if we don't already have one for this date
-                    if (!$('.date-header').first().find('.date-label').text().includes(item.label)) {
-                        addDateHeaderToUI(item, true);
+    function loadMoreMessages() {
+        if (isLoading || !hasMoreMessages) return;
+
+        isLoading = true;
+        $('#loading-indicator').show();
+
+        currentPage++;
+
+        // Use the appropriate URL based on chat type
+        const url = typeof getRoomMessagesUrl !== 'undefined' ? getRoomMessagesUrl : getChatMessagesUrl;
+
+        $.get(url, {
+            page: currentPage,
+            limit: 20
+        }).done(function (data) {
+            if (data.messages && data.messages.length > 0) {
+                const container = $('#messages-container');
+                const scrollHeight = container[0].scrollHeight;
+
+                // Process messages in reverse order and add to top
+                const reversedMessages = [...data.messages].reverse();
+                let addedCount = 0;
+
+                reversedMessages.forEach(function (item) {
+                    if (item.type === 'date_header') {
+                        // Only add date header if we don't already have one for this date
+                        const existingHeaders = $('.date-header .date-label');
+                        let alreadyExists = false;
+                        existingHeaders.each(function () {
+                            if ($(this).text() === item.label) {
+                                alreadyExists = true;
+                                return false;
+                            }
+                        });
+
+                        if (!alreadyExists) {
+                            addDateHeaderToUI(item, true);
+                            addedCount++;
+                        }
+                    } else if (item.type === 'message') {
+                        // Only add message if we haven't loaded it already
+                        if (!loadedMessageIds.has(item.id)) {
+                            addMessageToUI(item, item.is_own || false, true);
+                            loadedMessageIds.add(item.id);
+                            addedCount++;
+                        }
                     }
-                } else if (item.type === 'message') {
-                    addMessageToUI(item, item.is_own || false, true);
-                }
-            });
-            
-            // Maintain scroll position
-            const newScrollHeight = container[0].scrollHeight;
-            container[0].scrollTop = newScrollHeight - scrollHeight;
-            
-            hasMoreMessages = data.has_more;
-        } else {
-            hasMoreMessages = false;
-        }
-    }).fail(function(xhr, status, error) {
-        currentPage--; // Revert page increment on failure
-        console.error('Load messages error:', error);
-        alert('Error loading messages');
-    }).always(function() {
-        isLoading = false;
-        $('#loading-indicator').hide();
-    });
-}
+                });
 
-function addDateHeaderToUI(dateData, prepend = false) {
-    const dateHTML = `
+                // Maintain scroll position only if we added messages
+                if (addedCount > 0) {
+                    const newScrollHeight = container[0].scrollHeight;
+                    container[0].scrollTop = newScrollHeight - scrollHeight;
+                }
+
+                hasMoreMessages = data.has_more;
+            } else {
+                hasMoreMessages = false;
+            }
+        }).fail(function (xhr, status, error) {
+            currentPage--; // Revert page increment on failure
+            console.error('Load messages error:', error);
+            alert('Error loading messages');
+        }).always(function () {
+            isLoading = false;
+            $('#loading-indicator').hide();
+        });
+    }
+
+    function addDateHeaderToUI(dateData, prepend = false) {
+        const dateHTML = `
         <div class="date-header">
             <span class="date-label">${dateData.label || formatDateLabel(dateData.date)}</span>
         </div>
     `;
-    
-    if (prepend) {
-        // Check if we already have this date header
-        const existingHeaders = $('.date-header .date-label');
-        let alreadyExists = false;
-        existingHeaders.each(function() {
-            if ($(this).text() === (dateData.label || formatDateLabel(dateData.date))) {
-                alreadyExists = true;
-                return false;
-            }
-        });
-        
-        if (!alreadyExists) {
-            $('#messages-container').prepend(dateHTML);
-        }
-    } else {
-        $('#messages-container').append(dateHTML);
-    }
-}
 
-function addMessageToUI(messageData, isOwn, prepend = false) {
-    // Validate messageData
-    if (!messageData || !messageData.username) {
-        console.error('Invalid message data:', messageData);
-        return;
-    }
-    
-    const messageClass = isOwn ? 'message-own' : 'message-other';
-    const messageId = messageData.message_id || messageData.id;
-    
-    // Format timestamp properly
-    let formattedTime = 'Invalid Date';
-    if (messageData.formatted_time) {
-        formattedTime = messageData.formatted_time;
-    } else if (messageData.timestamp) {
-        const timestamp = new Date(messageData.timestamp);
-        if (!isNaN(timestamp.getTime())) {
-            formattedTime = timestamp.toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
+        if (prepend) {
+            // Check if we already have this date header
+            const existingHeaders = $('.date-header .date-label');
+            let alreadyExists = false;
+            existingHeaders.each(function () {
+                if ($(this).text() === (dateData.label || formatDateLabel(dateData.date))) {
+                    alreadyExists = true;
+                    return false;
+                }
             });
+
+            if (!alreadyExists) {
+                $('#messages-container').prepend(dateHTML);
+            }
+        } else {
+            $('#messages-container').append(dateHTML);
         }
     }
-    
-    // User info for other users' messages
-    const userInfo = !isOwn ? `
+
+    function addMessageToUI(messageData, isOwn, prepend = false) {
+        // Validate messageData
+        if (!messageData || !messageData.username) {
+            console.error('Invalid message data:', messageData);
+            return;
+        }
+
+        const messageClass = isOwn ? 'message-own' : 'message-other';
+        const messageId = messageData.message_id || messageData.id;
+
+        // Check if message already exists
+        if ($(`#messages-container .message-bubble[data-message-id="${messageId}"]`).length > 0) {
+            return; // Message already exists, skip
+        }
+
+        // Format timestamp properly
+        let formattedTime = 'Invalid Date';
+        if (messageData.formatted_time) {
+            formattedTime = messageData.formatted_time;
+        } else if (messageData.timestamp) {
+            const timestamp = new Date(messageData.timestamp);
+            if (!isNaN(timestamp.getTime())) {
+                formattedTime = timestamp.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+            }
+        }
+
+        // User info for other users' messages
+        const userInfo = !isOwn ? `
         <div class="d-flex align-items-center mb-1">
             <small class="text-muted fw-bold">${messageData.username}</small>
         </div>
     ` : '';
-    
-    // Message content based on type
-    let messageContent = '';
-    if (messageData.is_deleted) {
-        messageContent = `<em class="text-muted">${messageData.content || 'This message was deleted'}</em>`;
-    } else if (messageData.message_type === 'IMAGE' && messageData.file_url) {
-        messageContent = `
+
+        // Message content based on type - FIXED: Show deleted messages properly
+        let messageContent = '';
+        if (messageData.is_deleted) {
+            messageContent = `<em class="text-muted">${escapeHtml(messageData.content)}</em>`;
+        } else if (messageData.message_type === 'IMAGE' && messageData.file_url) {
+            messageContent = `
             <div class="message-image">
                 <img src="${messageData.file_url}" class="img-fluid rounded" 
                      style="max-width: 300px; max-height: 200px; cursor: pointer;"
@@ -623,8 +663,8 @@ function addMessageToUI(messageData, isOwn, prepend = false) {
                 ${messageData.content ? `<div class="mt-2">${escapeHtml(messageData.content)}</div>` : ''}
             </div>
         `;
-    } else if (messageData.message_type === 'FILE' && messageData.file_url) {
-        messageContent = `
+        } else if (messageData.message_type === 'FILE' && messageData.file_url) {
+            messageContent = `
             <div class="message-file">
                 <i class="fas fa-file me-2"></i>
                 <a href="${messageData.file_url}" download class="text-decoration-none">
@@ -633,37 +673,42 @@ function addMessageToUI(messageData, isOwn, prepend = false) {
                 ${messageData.content ? `<div class="mt-2">${escapeHtml(messageData.content)}</div>` : ''}
             </div>
         `;
-    } else {
-        messageContent = escapeHtml(messageData.content || '');
-    }
-    
-    // Read receipt for own messages
-    let readReceipt = '';
-    if (isOwn && !messageData.is_deleted) {
-        if (messageData.read_count !== undefined) {
-            // Room messages
-            if (messageData.read_count > 0) {
-                readReceipt = `
+        } else {
+            messageContent = escapeHtml(messageData.content || '');
+        }
+
+        // FIXED: Read receipt logic for both private and room chats
+        let readReceipt = '';
+        if (isOwn && !messageData.is_deleted) {
+            if (messageData.read_count !== undefined) {
+                // Room messages
+                if (messageData.read_count > 0) {
+                    readReceipt = `
                     <div class="read-receipt">
                         <i class="fas fa-check-double text-primary" title="Read by ${messageData.read_count} member${messageData.read_count > 1 ? 's' : ''}"></i>
                         ${messageData.read_count > 1 ? `<small class="text-muted">${messageData.read_count}</small>` : ''}
                     </div>
                 `;
-            } else {
-                readReceipt = '<div class="read-receipt"><i class="fas fa-check text-muted" title="Sent"></i></div>';
-            }
-        } else if (messageData.read_by !== undefined) {
-            // Private messages
-            if (messageData.read_by && messageData.read_by.length > 0) {
+                } else {
+                    readReceipt = '<div class="read-receipt"><i class="fas fa-check text-muted" title="Sent"></i></div>';
+                }
+            } else if (messageData.is_read_by_other !== undefined) {
+                // Private messages
+                if (messageData.is_read_by_other) {
+                    readReceipt = '<div class="read-receipt"><i class="fas fa-check-double text-primary" title="Read"></i></div>';
+                } else {
+                    readReceipt = '<div class="read-receipt"><i class="fas fa-check text-muted" title="Sent"></i></div>';
+                }
+            } else if (messageData.read_by && messageData.read_by.length > 0) {
+                // Fallback for private messages
                 readReceipt = '<div class="read-receipt"><i class="fas fa-check-double text-primary" title="Read"></i></div>';
             } else {
                 readReceipt = '<div class="read-receipt"><i class="fas fa-check text-muted" title="Sent"></i></div>';
             }
         }
-    }
-    
-    // Message actions for own messages
-    const messageActions = isOwn && !messageData.is_deleted ? `
+
+        // Message actions for own messages (but not for deleted messages)
+        const messageActions = isOwn && !messageData.is_deleted ? `
         <div class="message-actions" style="display: none;">
             ${messageData.message_type === 'TEXT' ? `
                 <button class="btn btn-xs btn-outline-secondary me-1" 
@@ -677,8 +722,8 @@ function addMessageToUI(messageData, isOwn, prepend = false) {
             </button>
         </div>
     ` : '';
-    
-    const messageHTML = `
+
+        const messageHTML = `
         <div class="message-bubble ${messageClass} ${messageData.is_deleted ? 'message-deleted' : ''}" data-message-id="${messageId}">
             ${userInfo}
             <div class="message-content">${messageContent}</div>
@@ -692,238 +737,269 @@ function addMessageToUI(messageData, isOwn, prepend = false) {
             ${messageActions}
         </div>
     `;
-    
-    if (prepend) {
-        $('#messages-container').prepend(messageHTML);
-    } else {
-        $('#messages-container').append(messageHTML);
-        
-        if (isAtBottom) {
-            scrollToBottom();
+
+        if (prepend) {
+            $('#messages-container').prepend(messageHTML);
+        } else {
+            $('#messages-container').append(messageHTML);
+
+            if (isAtBottom) {
+                scrollToBottom();
+            }
         }
     }
-}
 
-function refreshMessages() {
-    const url = typeof getRoomMessagesUrl !== 'undefined' ? getRoomMessagesUrl : getChatMessagesUrl;
-    
-    $.get(url, {
-        page: 1,
-        limit: 20
-    }).done(function(data) {
-        // Get current message IDs
-        const currentMessages = $('#messages-container .message-bubble').map(function() {
-            return $(this).data('message-id');
-        }).get();
-        
-        // Find new messages
-        let newMessages = [];
-        if (data.messages) {
-            data.messages.forEach(function(item) {
-                if (item.type === 'message' && !currentMessages.includes(item.id)) {
-                    newMessages.push(item);
-                }
+    function refreshMessages() {
+        const url = typeof getRoomMessagesUrl !== 'undefined' ? getRoomMessagesUrl : getChatMessagesUrl;
+
+        $.get(url, {
+            page: 1,
+            limit: 20
+        }).done(function (data) {
+            // Find new messages that we haven't loaded yet
+            let newMessages = [];
+            if (data.messages) {
+                data.messages.forEach(function (item) {
+                    if (item.type === 'message' && !loadedMessageIds.has(item.id)) {
+                        newMessages.push(item);
+                        loadedMessageIds.add(item.id);
+                    }
+                });
+            }
+
+            // Add new messages
+            newMessages.forEach(function (message) {
+                addMessageToUI(message, message.is_own);
             });
-        }
-        
-        // Add new messages
-        newMessages.forEach(function(message) {
-            addMessageToUI(message, message.is_own);
-        });
-        
-        // Update read receipts for existing messages
-        updateReadReceipts(data.messages);
-    }).fail(function(xhr, status, error) {
-        console.error('Refresh messages error:', error);
-    });
-}
 
-function updateReadReceipts(messages) {
-    if (!messages) return;
-    
-    messages.forEach(function(message) {
-        if (message.type === 'message' && message.is_own) {
-            const messageElement = $(`.message-bubble[data-message-id="${message.id}"]`);
-            const readReceiptElement = messageElement.find('.read-receipt');
-            
-            if (readReceiptElement.length > 0) {
-                let newReceiptHtml = '';
-                
-                if (message.read_count !== undefined) {
-                    // Room message
-                    if (message.read_count > 0) {
-                        newReceiptHtml = `
+            // Update read receipts for existing messages without causing flickering
+            updateReadReceiptsStable(data.messages);
+
+            // Update deleted message status for existing messages
+            updateDeletedMessages(data.messages);
+        }).fail(function (xhr, status, error) {
+            console.error('Refresh messages error:', error);
+        });
+    }
+
+    // FIXED: Stable read receipt updates to prevent tick mark flickering
+    function updateReadReceiptsStable(messages) {
+        if (!messages) return;
+
+        messages.forEach(function (message) {
+            if (message.type === 'message' && message.is_own) {
+                const messageElement = $(`.message-bubble[data-message-id="${message.id}"]`);
+                const readReceiptElement = messageElement.find('.read-receipt');
+
+                if (readReceiptElement.length > 0) {
+                    let newReceiptHtml = '';
+                    let shouldUpdate = false;
+
+                    if (message.read_count !== undefined) {
+                        // Room message - only update if read count actually changed
+                        const currentReadCount = parseInt(readReceiptElement.find('small.text-muted').text()) || 0;
+                        const hasDoubleCheck = readReceiptElement.find('.fa-check-double').length > 0;
+
+                        if (message.read_count > 0 && (currentReadCount !== message.read_count || !hasDoubleCheck)) {
+                            newReceiptHtml = `
                             <i class="fas fa-check-double text-primary" title="Read by ${message.read_count} member${message.read_count > 1 ? 's' : ''}"></i>
                             ${message.read_count > 1 ? `<small class="text-muted">${message.read_count}</small>` : ''}
                         `;
-                    } else {
-                        newReceiptHtml = '<i class="fas fa-check text-muted" title="Sent"></i>';
+                            shouldUpdate = true;
+                        } else if (message.read_count === 0 && hasDoubleCheck) {
+                            newReceiptHtml = '<i class="fas fa-check text-muted" title="Sent"></i>';
+                            shouldUpdate = true;
+                        }
+                    } else if (message.is_read_by_other !== undefined) {
+                        // Private message - only update if read status actually changed
+                        const hasDoubleCheck = readReceiptElement.find('.fa-check-double').length > 0;
+
+                        if (message.is_read_by_other && !hasDoubleCheck) {
+                            newReceiptHtml = '<i class="fas fa-check-double text-primary" title="Read"></i>';
+                            shouldUpdate = true;
+                        } else if (!message.is_read_by_other && hasDoubleCheck) {
+                            newReceiptHtml = '<i class="fas fa-check text-muted" title="Sent"></i>';
+                            shouldUpdate = true;
+                        }
                     }
-                } else if (message.read_by !== undefined) {
-                    // Private message
-                    if (message.read_by && message.read_by.length > 0) {
-                        newReceiptHtml = '<i class="fas fa-check-double text-primary" title="Read"></i>';
-                    } else {
-                        newReceiptHtml = '<i class="fas fa-check text-muted" title="Sent"></i>';
+
+                    if (shouldUpdate) {
+                        readReceiptElement.html(newReceiptHtml);
                     }
                 }
-                
-                readReceiptElement.html(newReceiptHtml);
             }
-        }
-    });
-}
-
-function scrollToBottom() {
-    const container = $('#messages-container')[0];
-    if (container) {
-        container.scrollTop = container.scrollHeight;
-    }
-}
-
-function formatDateLabel(dateString) {
-    if (!dateString) return 'Unknown Date';
-    
-    const messageDate = new Date(dateString);
-    if (isNaN(messageDate.getTime())) return 'Invalid Date';
-    
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    
-    // Reset times for comparison
-    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const yesterdayDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-    const msgDate = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
-    
-    if (msgDate.getTime() === todayDate.getTime()) {
-        return "Today";
-    } else if (msgDate.getTime() === yesterdayDate.getTime()) {
-        return "Yesterday";
-    } else if (messageDate > today.getTime() - 7 * 24 * 60 * 60 * 1000) {
-        return messageDate.toLocaleDateString('en-US', { weekday: 'long' });
-    } else if (messageDate.getFullYear() === today.getFullYear()) {
-        return messageDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-    } else {
-        return messageDate.toLocaleDateString('en-US', { 
-            month: 'long', 
-            day: 'numeric', 
-            year: 'numeric' 
         });
     }
-}
 
-// Utility functions
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+    // FIXED: Update deleted message status
+    function updateDeletedMessages(messages) {
+        if (!messages) return;
 
-function escapeForJs(text) {
-    if (!text) return '';
-    return text.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
-}
+        messages.forEach(function (message) {
+            if (message.type === 'message' && message.is_deleted) {
+                const messageElement = $(`.message-bubble[data-message-id="${message.id}"]`);
 
-// File handling functions
-function handleFileSelect(type) {
-    const input = document.getElementById(type + '-input');
-    const file = input.files[0];
-    
-    if (file) {
-        // Clear the other input
-        const otherType = type === 'image' ? 'file' : 'image';
-        document.getElementById(otherType + '-input').value = '';
-        
-        // Show preview
-        const preview = document.getElementById('file-preview');
-        const fileName = document.getElementById('file-name');
-        
-        if (type === 'image') {
-            fileName.innerHTML = `<i class="fas fa-image me-1"></i>${file.name}`;
-        } else {
-            fileName.innerHTML = `<i class="fas fa-file me-1"></i>${file.name}`;
-        }
-        
-        preview.style.display = 'block';
+                if (messageElement.length > 0 && !messageElement.hasClass('message-deleted')) {
+                    // Update the message to show as deleted
+                    messageElement.addClass('message-deleted');
+                    messageElement.find('.message-content').html(`<em class="text-muted">${escapeHtml(message.content)}</em>`);
+                    messageElement.find('.message-actions').remove();
+                    messageElement.find('.read-receipt').remove();
+                }
+            }
+        });
     }
-}
 
-function clearFileSelection() {
-    document.getElementById('image-input').value = '';
-    document.getElementById('file-input').value = '';
-    document.getElementById('file-preview').style.display = 'none';
-}
-
-function showImageModal(imageUrl, username) {
-    document.getElementById('modalImage').src = imageUrl;
-    document.getElementById('imageModalTitle').textContent = `Image from ${username}`;
-    new bootstrap.Modal(document.getElementById('imageModal')).show();
-}
-
-// Message editing and deleting
-function editMessage(messageId, currentContent) {
-    $('#edit-message-id').val(messageId);
-    $('#edit-content').val(currentContent);
-    $('#editMessageModal').modal('show');
-}
-
-function saveEditedMessage() {
-    const messageId = $('#edit-message-id').val();
-    const newContent = $('#edit-content').val().trim();
-    
-    if (!newContent) {
-        alert('Message content cannot be empty');
-        return;
-    }
-    
-    $.post(editMessageUrl, {
-        'message_id': messageId,
-        'content': newContent,
-        'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
-    }).done(function(response) {
-        if (response.success) {
-            const messageElement = $(`.message-bubble[data-message-id="${messageId}"]`);
-            messageElement.find('.message-content').text(response.content);
-            messageElement.find('.message-time').html(`${response.edited_at} <i class="fas fa-edit ms-1" title="Edited"></i>`);
-            
-            $('#editMessageModal').modal('hide');
-        } else {
-            alert('Error editing message: ' + (response.message || 'Unknown error'));
+    function scrollToBottom() {
+        const container = $('#messages-container')[0];
+        if (container) {
+            container.scrollTop = container.scrollHeight;
         }
-    }).fail(function() {
-        alert('Error editing message. Please try again.');
-    });
-}
+    }
 
-function deleteMessage(messageId) {
-    if (confirm('Are you sure you want to delete this message?')) {
-        $.post(deleteMessageUrl, {
+    function formatDateLabel(dateString) {
+        if (!dateString) return 'Unknown Date';
+
+        const messageDate = new Date(dateString);
+        if (isNaN(messageDate.getTime())) return 'Invalid Date';
+
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+
+        // Reset times for comparison
+        const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const yesterdayDate = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+        const msgDate = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+
+        if (msgDate.getTime() === todayDate.getTime()) {
+            return "Today";
+        } else if (msgDate.getTime() === yesterdayDate.getTime()) {
+            return "Yesterday";
+        } else if (messageDate > today.getTime() - 7 * 24 * 60 * 60 * 1000) {
+            return messageDate.toLocaleDateString('en-US', { weekday: 'long' });
+        } else if (messageDate.getFullYear() === today.getFullYear()) {
+            return messageDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+        } else {
+            return messageDate.toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+    }
+
+    // Utility functions
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function escapeForJs(text) {
+        if (!text) return '';
+        return text.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+    }
+
+    // File handling functions
+    function handleFileSelect(type) {
+        const input = document.getElementById(type + '-input');
+        const file = input.files[0];
+
+        if (file) {
+            // Clear the other input
+            const otherType = type === 'image' ? 'file' : 'image';
+            document.getElementById(otherType + '-input').value = '';
+
+            // Show preview
+            const preview = document.getElementById('file-preview');
+            const fileName = document.getElementById('file-name');
+
+            if (type === 'image') {
+                fileName.innerHTML = `<i class="fas fa-image me-1"></i>${file.name}`;
+            } else {
+                fileName.innerHTML = `<i class="fas fa-file me-1"></i>${file.name}`;
+            }
+
+            preview.style.display = 'block';
+        }
+    }
+
+    function clearFileSelection() {
+        document.getElementById('image-input').value = '';
+        document.getElementById('file-input').value = '';
+        document.getElementById('file-preview').style.display = 'none';
+    }
+
+    function showImageModal(imageUrl, username) {
+        document.getElementById('modalImage').src = imageUrl;
+        document.getElementById('imageModalTitle').textContent = `Image from ${username}`;
+        new bootstrap.Modal(document.getElementById('imageModal')).show();
+    }
+
+    // Message editing and deleting
+    function editMessage(messageId, currentContent) {
+        $('#edit-message-id').val(messageId);
+        $('#edit-content').val(currentContent);
+        $('#editMessageModal').modal('show');
+    }
+
+    function saveEditedMessage() {
+        const messageId = $('#edit-message-id').val();
+        const newContent = $('#edit-content').val().trim();
+
+        if (!newContent) {
+            alert('Message content cannot be empty');
+            return;
+        }
+
+        $.post(editMessageUrl, {
             'message_id': messageId,
+            'content': newContent,
             'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
-        }).done(function(response) {
+        }).done(function (response) {
             if (response.success) {
                 const messageElement = $(`.message-bubble[data-message-id="${messageId}"]`);
-                messageElement.addClass('message-deleted');
-                messageElement.find('.message-content').html(`<em class="text-muted">${response.deleted_content || 'This message was deleted'}</em>`);
-                messageElement.find('.message-actions').remove();
-                messageElement.find('.read-receipt').remove();
+                messageElement.find('.message-content').text(response.content);
+                messageElement.find('.message-time').html(`${response.edited_at} <i class="fas fa-edit ms-1" title="Edited"></i>`);
+
+                $('#editMessageModal').modal('hide');
             } else {
-                alert('Error deleting message: ' + (response.message || 'Unknown error'));
+                alert('Error editing message: ' + (response.message || 'Unknown error'));
             }
-        }).fail(function() {
-            alert('Error deleting message. Please try again.');
+        }).fail(function () {
+            alert('Error editing message. Please try again.');
         });
     }
-}
 
-// Enter key to send message
-$(document).on('keypress', '#message-form input[name="content"]', function(e) {
-    if (e.which === 13) {
-        e.preventDefault();
-        $('#message-form').submit();
+    function deleteMessage(messageId) {
+        if (confirm('Are you sure you want to delete this message?')) {
+            $.post(deleteMessageUrl, {
+                'message_id': messageId,
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            }).done(function (response) {
+                if (response.success) {
+                    const messageElement = $(`.message-bubble[data-message-id="${messageId}"]`);
+                    messageElement.addClass('message-deleted');
+                    messageElement.find('.message-content').html(`<em class="text-muted">${escapeHtml(response.deleted_content)}</em>`);
+                    messageElement.find('.message-actions').remove();
+                    messageElement.find('.read-receipt').remove();
+                } else {
+                    alert('Error deleting message: ' + (response.message || 'Unknown error'));
+                }
+            }).fail(function () {
+                alert('Error deleting message. Please try again.');
+            });
+        }
     }
-});
+
+    // Enter key to send message
+    $(document).on('keypress', '#message-form input[name="content"]', function (e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            $('#message-form').submit();
+        }
+    });
 </script>
 {% endblock %}
