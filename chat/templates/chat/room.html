@@ -933,31 +933,166 @@
             page: 1,
             limit: 20
         }).done(function (data) {
-            // Get current message IDs
-            const currentMessages = $('#messages-container .message-bubble').map(function () {
-                return $(this).data('message-id');
-            }).get();
+            if (!data.messages) return;
 
-            // Find new messages
+            // Get current message elements for comparison
+            const currentMessageElements = $('#messages-container .message-bubble');
+            const currentMessages = new Map();
+
+            currentMessageElements.each(function () {
+                const messageId = $(this).data('message-id');
+                if (messageId) {
+                    currentMessages.set(messageId.toString(), {
+                        element: $(this),
+                        isDeleted: $(this).hasClass('message-deleted')
+                    });
+                }
+            });
+
             let newMessages = [];
-            if (data.messages) {
-                data.messages.forEach(function (item) {
-                    if (item.type === 'message' && !currentMessages.includes(item.id)) {
-                        newMessages.push(item);
+
+            data.messages.forEach(function (item) {
+                if (item.type === 'message') {
+                    const messageId = item.id;
+                    const existingMessage = currentMessages.get(messageId);
+
+                    if (!existingMessage) {
+                        // Completely new message
+                        if (!loadedMessageIds.has(messageId)) {
+                            newMessages.push(item);
+                            loadedMessageIds.add(messageId);
+                        }
+                    } else {
+                        // Message exists, check if deletion status changed
+                        if (item.is_deleted && !existingMessage.isDeleted) {
+                            // Message was just deleted - update immediately
+                            updateMessageAsDeleted(existingMessage.element, item);
+                        } else if (!item.is_deleted && existingMessage.isDeleted) {
+                            // Message was undeleted (if that's possible in your system)
+                            updateMessageAsUndeleted(existingMessage.element, item);
+                        }
+
+                        // Update read receipts if message is not deleted
+                        if (!item.is_deleted) {
+                            updateMessageReadReceipt(existingMessage.element, item);
+                        }
                     }
-                });
-            }
+                }
+            });
 
             // Add new messages
             newMessages.forEach(function (message) {
                 addMessageToUI(message, message.is_own);
             });
 
-            // Update read receipts for existing messages
-            updateReadReceipts(data.messages);
         }).fail(function (xhr, status, error) {
             console.error('Refresh messages error:', error);
         });
+    }
+
+    // Helper function to immediately update a message as deleted
+    function updateMessageAsDeleted(messageElement, messageData) {
+        messageElement.addClass('message-deleted');
+        messageElement.find('.message-content').html(`<em class="text-muted">${escapeHtml(messageData.content || 'This message was deleted')}</em>`);
+        messageElement.find('.message-actions').remove();
+        messageElement.find('.read-receipt').remove();
+    }
+
+    // Helper function to update a message as undeleted (if needed)
+    function updateMessageAsUndeleted(messageElement, messageData) {
+        messageElement.removeClass('message-deleted');
+
+        // Rebuild message content
+        let messageContent = '';
+        if (messageData.message_type === 'IMAGE' && messageData.file_url) {
+            messageContent = `
+            <div class="message-image">
+                <img src="${messageData.file_url}" class="img-fluid rounded" 
+                     style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                     onclick="showImageModal('${messageData.file_url}', '${messageData.username}')" alt="Image">
+                ${messageData.content ? `<div class="mt-2">${escapeHtml(messageData.content)}</div>` : ''}
+            </div>
+        `;
+        } else if (messageData.message_type === 'FILE' && messageData.file_url) {
+            messageContent = `
+            <div class="message-file">
+                <i class="fas fa-file me-2"></i>
+                <a href="${messageData.file_url}" download class="text-decoration-none">
+                    ${messageData.file_name || 'Download File'}
+                </a>
+                ${messageData.content ? `<div class="mt-2">${escapeHtml(messageData.content)}</div>` : ''}
+            </div>
+        `;
+        } else {
+            messageContent = escapeHtml(messageData.content || '');
+        }
+
+        messageElement.find('.message-content').html(messageContent);
+
+        // Re-add read receipt and actions if it's user's own message
+        if (messageData.is_own) {
+            updateMessageReadReceipt(messageElement, messageData);
+
+            // Re-add message actions if it's a text message
+            if (messageData.message_type === 'TEXT') {
+                const actionsHtml = `
+                <div class="message-actions" style="display: none;">
+                    <button class="btn btn-xs btn-outline-secondary me-1" 
+                            onclick="editMessage('${messageData.id}', '${escapeForJs(messageData.content || '')}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-xs btn-outline-danger" 
+                            onclick="deleteMessage('${messageData.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+                messageElement.append(actionsHtml);
+            }
+        }
+    }
+
+    // Helper function to update read receipts for a specific message
+    function updateMessageReadReceipt(messageElement, messageData) {
+        if (!messageData.is_own) return;
+
+        const readReceiptElement = messageElement.find('.read-receipt');
+        if (readReceiptElement.length === 0) return;
+
+        let newReceiptHtml = '';
+        let shouldUpdate = false;
+
+        if (messageData.read_count !== undefined) {
+            // Room message
+            const currentReadCount = parseInt(readReceiptElement.find('small.text-muted').text()) || 0;
+            const hasDoubleCheck = readReceiptElement.find('.fa-check-double').length > 0;
+
+            if (messageData.read_count > 0 && (currentReadCount !== messageData.read_count || !hasDoubleCheck)) {
+                newReceiptHtml = `
+                <i class="fas fa-check-double text-primary" title="Read by ${messageData.read_count} member${messageData.read_count > 1 ? 's' : ''}"></i>
+                ${messageData.read_count > 1 ? `<small class="text-muted">${messageData.read_count}</small>` : ''}
+            `;
+                shouldUpdate = true;
+            } else if (messageData.read_count === 0 && hasDoubleCheck) {
+                newReceiptHtml = '<i class="fas fa-check text-muted" title="Sent"></i>';
+                shouldUpdate = true;
+            }
+        } else if (messageData.is_read_by_other !== undefined) {
+            // Private message
+            const hasDoubleCheck = readReceiptElement.find('.fa-check-double').length > 0;
+
+            if (messageData.is_read_by_other && !hasDoubleCheck) {
+                newReceiptHtml = '<i class="fas fa-check-double text-primary" title="Read"></i>';
+                shouldUpdate = true;
+            } else if (!messageData.is_read_by_other && hasDoubleCheck) {
+                newReceiptHtml = '<i class="fas fa-check text-muted" title="Sent"></i>';
+                shouldUpdate = true;
+            }
+        }
+
+        if (shouldUpdate) {
+            readReceiptElement.html(newReceiptHtml);
+        }
     }
 
     function updateReadReceipts(messages) {

@@ -138,6 +138,10 @@
         opacity: 0.6;
         pointer-events: none;
     }
+    .card-body button {
+    pointer-events: auto !important;
+    z-index: 1000;
+}
 </style>
 {% endblock %}
 
@@ -168,11 +172,17 @@ function respondToInvitation(invitationId, action) {
                         <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
                         <h5 class="text-success">Invitation Accepted!</h5>
                         <p class="text-muted mb-3">You've been added to the room successfully.</p>
-                        <a href="{% url 'room_list' %}" class="btn btn-primary">
+                        <button type="button" class="btn btn-primary" onclick="window.location.href='{% url 'room_list' %}'">
                             <i class="fas fa-comments me-1"></i>Go to Rooms
-                        </a>
+                        </button>
                     </div>
                 `;
+                
+                // Alternative: Auto-redirect after 2 seconds
+                // setTimeout(() => {
+                //     window.location.href = '{% url "room_list" %}';
+                // }, 2000);
+                
             } else {
                 // Fade out rejected invitation
                 card.style.transition = 'all 0.5s ease';

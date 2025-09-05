@@ -251,7 +251,7 @@ def private_chat_view(request, user_id):
     )
     
     # Get messages with read receipts prefetched
-    messages_list = chat.messages.filter(is_deleted=False).prefetch_related(
+    messages_list = chat.messages.prefetch_related(
         'read_receipts__user'
     ).order_by('timestamp')
     
@@ -318,7 +318,7 @@ def room_view(request, room_id):
     )
     
     # Get messages with read receipts prefetched
-    messages_list = room.messages.filter(is_deleted=False).prefetch_related(
+    messages_list = room.messages.prefetch_related(
         'read_receipts__user'
     ).order_by('timestamp')
     
@@ -507,10 +507,10 @@ def get_chat_messages(request, chat_id):
     limit = int(request.GET.get('limit', 50))
     offset = (page - 1) * limit
     
-    # Get messages including deleted ones (they should remain visible)
+    # FIXED: Include deleted messages - remove the filter
     messages_queryset = chat.messages.prefetch_related(
         'read_receipts__user'
-    ).order_by('-timestamp')
+    ).order_by('-timestamp')  # Removed .filter(is_deleted=False)
     
     total_messages = messages_queryset.count()
     messages_list = list(messages_queryset[offset:offset + limit])
@@ -605,10 +605,10 @@ def get_room_messages(request, room_id):
     limit = int(request.GET.get('limit', 50))
     offset = (page - 1) * limit
     
-    # Get messages including deleted ones (they should remain visible)
+    # FIXED: Include deleted messages - remove the filter
     messages_queryset = room.messages.prefetch_related(
         'read_receipts__user'
-    ).order_by('-timestamp')
+    ).order_by('-timestamp')  # Removed .filter(is_deleted=False)
     
     total_messages = messages_queryset.count()
     messages_list = list(messages_queryset[offset:offset + limit])
