@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+
+{% block title %}Verify Email - ChatApp{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card card-custom">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="fas fa-envelope-open fa-3x text-primary mb-3"></i>
+                    <h2 class="card-title">Verify Your Email</h2>
+                    <p class="text-muted">We've sent a verification code to</p>
+                    <p class="fw-bold text-primary">{{ email }}</p>
+                    
+                    <!-- Progress indicator -->
+                    <div class="progress mb-4" style="height: 8px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: 100%"></div>
+                    </div>
+                    <small class="text-muted">Step 2 of 2: Email Verification</small>
+                </div>
+                
+                <form method="post" id="otpForm">
+                    {% csrf_token %}
+                    
+                    <div class="mb-4">
+                        <label for="id_otp_code" class="form-label text-center d-block">
+                            Enter 6-digit verification code
+                        </label>
+                        {{ form.otp_code }}
+                        {% if form.otp_code.errors %}
+                            <div class="text-danger small text-center mt-2">
+                                {{ form.otp_code.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid mb-3">
+                        <button type="submit" class="btn btn-custom" id="verifyBtn">
+                            <i class="fas fa-check me-2"></i>Verify & Create Account
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="text-center">
+                    <p class="mb-2">Didn't receive the code?</p>
+                    <button type="button" class="btn btn-link text-primary p-0" id="resendBtn">
+                        <i class="fas fa-redo me-1"></i>Resend Code
+                    </button>
+                    
+                    <div id="resendTimer" class="mt-2 text-muted small" style="display: none;">
+                        Resend available in <span id="countdown">60</span> seconds
+                    </div>
+                    
+                    <hr class="my-3">
+                    <a href="{% url 'register_step1' %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Registration
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden forms for AJAX -->
+<form id="resendForm" style="display: none;">
+    {% csrf_token %}
+    {{ resend_form }}
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let resendTimeout;
+    let countdownTimer;
+    
+    const otpForm = document.getElementById('otpForm');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const resendBtn = document.getElementById('resendBtn');
+    const resendTimer = document.getElementById('resendTimer');
+    const countdown = document.getElementById('countdown');
+    const otpInput = document.getElementById('id_otp_code');
+    
+    // Auto-format OTP input
+    otpInput.addEventListener('input', function(e) {
+        // Remove any non-digit characters
+        let value = e.target.value.replace(/\D/g, '');
+        if (value.length > 6) {
+            value = value.slice(0, 6);
+        }
+        e.target.value = value;
+        
+        // Auto-submit when 6 digits are entered
+        if (value.length === 6) {
+            setTimeout(() => otpForm.submit(), 100);
+        }
+    });
+    
+    // Form submission with loading state
+    otpForm.addEventListener('submit', function() {
+        verifyBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verifying...';
+        verifyBtn.disabled = true;
+    });
+    
+    // Resend OTP functionality
+    resendBtn.addEventListener('click', function() {
+        if (this.disabled) return;
+        
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Sending...';
+        this.disabled = true;
+        
+        // Get CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch('{% url "resend_otp" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                email: '{{ email }}',
+                otp_type: 'registration'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                showAlert('success', data.message);
+                startResendTimer();
+            } else {
+                showAlert('danger', data.message);
+                this.innerHTML = '<i class="fas fa-redo me-1"></i>Resend Code';
+                this.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('danger', 'Failed to resend code. Please try again.');
+            this.innerHTML = '<i class="fas fa-redo me-1"></i>Resend Code';
+            this.disabled = false;
+        });
+    });
+    
+    function startResendTimer() {
+        let timeLeft = 60;
+        resendTimer.style.display = 'block';
+        countdown.textContent = timeLeft;
+        
+        countdownTimer = setInterval(function() {
+            timeLeft--;
+            countdown.textContent = timeLeft;
+            
+            if (timeLeft <= 0) {
+                clearInterval(countdownTimer);
+                resendTimer.style.display = 'none';
+                resendBtn.innerHTML = '<i class="fas fa-redo me-1"></i>Resend Code';
+                resendBtn.disabled = false;
+            }
+        }, 1000);
+    }
+    
+    function showAlert(type, message) {
+        // Remove existing alerts
+        const existingAlerts = document.querySelectorAll('.alert');
+        existingAlerts.forEach(alert => alert.remove());
+        
+        // Create new alert
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Insert at the top of the card body
+        const cardBody = document.querySelector('.card-body');
+        cardBody.insertBefore(alertDiv, cardBody.firstChild);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            if (alertDiv) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+    
+    // Focus on OTP input
+    otpInput.focus();
+    
+    // Start with resend timer disabled for 60 seconds
+    startResendTimer();
+});
+</script>
+{% endblock %}

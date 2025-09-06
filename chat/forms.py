@@ -1,9 +1,11 @@
 from django import forms
 from django.contrib.auth.models import User
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import UserCreationForm, SetPasswordForm
 from django.core.exceptions import ValidationError
-from .models import UserProfile, Room, Message, RoomInvitation
+from .models import UserProfile, Room, Message, RoomInvitation, OTPVerification, PasswordResetRequest
 import os
+import re
+
 
 class UserRegistrationForm(forms.ModelForm):
     password = forms.CharField(
@@ -213,3 +215,234 @@ class RoomInvitationForm(forms.ModelForm):
             raise ValidationError("No valid users selected.")
         
         return user_id_list
+    
+
+
+class EmailRegistrationForm(forms.Form):
+    """Initial registration form - collects user data and sends OTP"""
+    username = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Username'
+        })
+    )
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Email'
+        })
+    )
+    first_name = forms.CharField(
+        max_length=30,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'First Name'
+        })
+    )
+    last_name = forms.CharField(
+        max_length=30,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Last Name'
+        })
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Password'
+        }),
+        min_length=8
+    )
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Confirm Password'
+        })
+    )
+    
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if User.objects.filter(username=username).exists():
+            raise ValidationError("A user with this username already exists.")
+        
+        # Username validation
+        if not re.match(r'^[a-zA-Z0-9_]+$', username):
+            raise ValidationError("Username can only contain letters, numbers, and underscores.")
+        
+        return username
+    
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if User.objects.filter(email=email).exists():
+            raise ValidationError("A user with this email already exists.")
+        return email
+    
+    def clean_password(self):
+        password = self.cleaned_data.get('password')
+        
+        # Password strength validation
+        if len(password) < 8:
+            raise ValidationError("Password must be at least 8 characters long.")
+        
+        if not re.search(r'[A-Z]', password):
+            raise ValidationError("Password must contain at least one uppercase letter.")
+        
+        if not re.search(r'[a-z]', password):
+            raise ValidationError("Password must contain at least one lowercase letter.")
+        
+        if not re.search(r'\d', password):
+            raise ValidationError("Password must contain at least one number.")
+        
+        return password
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        confirm_password = cleaned_data.get('confirm_password')
+        
+        if password and confirm_password and password != confirm_password:
+            raise ValidationError("Passwords don't match.")
+        
+        return cleaned_data
+
+
+class OTPVerificationForm(forms.Form):
+    """Form for OTP verification"""
+    otp_code = forms.CharField(
+        max_length=6,
+        min_length=6,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control text-center',
+            'placeholder': '000000',
+            'style': 'font-size: 1.5rem; letter-spacing: 0.5rem;',
+            'maxlength': '6',
+            'autocomplete': 'off'
+        })
+    )
+    
+    def __init__(self, *args, **kwargs):
+        self.otp_verification = kwargs.pop('otp_verification', None)
+        super().__init__(*args, **kwargs)
+    
+    def clean_otp_code(self):
+        otp_code = self.cleaned_data.get('otp_code')
+        
+        if not otp_code or not otp_code.isdigit():
+            raise ValidationError("OTP must be a 6-digit number.")
+        
+        if len(otp_code) != 6:
+            raise ValidationError("OTP must be exactly 6 digits.")
+        
+        # Verify OTP if verification object is provided
+        if self.otp_verification:
+            is_valid, message = self.otp_verification.verify_otp(otp_code)
+            if not is_valid:
+                raise ValidationError(message)
+        
+        return otp_code
+
+
+class PasswordResetRequestForm(forms.Form):
+    """Form to request password reset"""
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter your email address'
+        })
+    )
+    
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        try:
+            user = User.objects.get(email=email)
+            self.user = user
+        except User.DoesNotExist:
+            raise ValidationError("No account found with this email address.")
+        return email
+
+
+class PasswordResetConfirmForm(SetPasswordForm):
+    """Form to set new password after OTP verification"""
+    new_password1 = forms.CharField(
+        label="New password",
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'New Password'
+        }),
+        strip=False,
+        help_text="Password must be at least 8 characters long and contain uppercase, lowercase, and numbers."
+    )
+    new_password2 = forms.CharField(
+        label="Confirm new password",
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Confirm New Password'
+        }),
+        strip=False,
+    )
+    
+    def clean_new_password1(self):
+        password = self.cleaned_data.get('new_password1')
+        
+        # Password strength validation
+        if len(password) < 8:
+            raise ValidationError("Password must be at least 8 characters long.")
+        
+        if not re.search(r'[A-Z]', password):
+            raise ValidationError("Password must contain at least one uppercase letter.")
+        
+        if not re.search(r'[a-z]', password):
+            raise ValidationError("Password must contain at least one lowercase letter.")
+        
+        if not re.search(r'\d', password):
+            raise ValidationError("Password must contain at least one number.")
+        
+        return password
+
+
+class ResendOTPForm(forms.Form):
+    """Form to resend OTP"""
+    email = forms.EmailField(widget=forms.HiddenInput())
+    otp_type = forms.CharField(widget=forms.HiddenInput())
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        email = cleaned_data.get('email')
+        otp_type = cleaned_data.get('otp_type')
+        
+        if not email or not otp_type:
+            raise ValidationError("Missing required information.")
+        
+        return cleaned_data
+
+
+class ContactForm(forms.Form):
+    """Contact form for support"""
+    name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Your Name'
+        })
+    )
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Your Email'
+        })
+    )
+    subject = forms.CharField(
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Subject'
+        })
+    )
+    message = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'placeholder': 'Your message...',
+            'rows': 5
+        })
+    )

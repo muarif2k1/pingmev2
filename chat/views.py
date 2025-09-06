@@ -4,21 +4,24 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from django.urls import reverse
-from .models import UserProfile, Friendship, PrivateChat, Room, Message, RoomParticipant, ChatParticipant, RoomInvitation
-from .forms import UserRegistrationForm, UserProfileForm, RoomCreationForm, MessageForm
+from .models import UserProfile, Friendship, PrivateChat, Room, Message, RoomParticipant, ChatParticipant, RoomInvitation, OTPVerification, PasswordResetRequest
+from .forms import UserRegistrationForm, UserProfileForm, RoomCreationForm, MessageForm, EmailRegistrationForm, OTPVerificationForm, PasswordResetRequestForm, PasswordResetConfirmForm, ResendOTPForm
 from django.http import FileResponse, Http404
 from django.conf import settings
+from datetime import datetime, date, timedelta
+from django.contrib.auth import update_session_auth_hash
 import json
 import os
-from datetime import datetime, date, timedelta
-from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -1089,3 +1092,350 @@ def get_date_label(message_date):
         return message_date.strftime("%B %d")  # Like "January 15"
     else:
         return message_date.strftime("%B %d, %Y")  # Like "January 15, 2023"
+
+
+def get_client_ip(request):
+    """Get client IP address"""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+# Registration Views
+def register_step1(request):
+    """Step 1: Collect user information and send OTP"""
+    if request.method == 'POST':
+        form = EmailRegistrationForm(request.POST)
+        if form.is_valid():
+            # Store form data in session
+            request.session['registration_data'] = {
+                'username': form.cleaned_data['username'],
+                'email': form.cleaned_data['email'],
+                'first_name': form.cleaned_data['first_name'],
+                'last_name': form.cleaned_data['last_name'],
+                'password': form.cleaned_data['password']
+            }
+            
+            # Create OTP verification
+            otp = OTPVerification.create_otp(
+                email=form.cleaned_data['email'],
+                otp_type='registration',
+                temp_data=request.session['registration_data']
+            )
+            
+            if otp:
+                request.session['otp_id'] = str(otp.id)
+                messages.success(request, 
+                    f'Verification code sent to {form.cleaned_data["email"]}. '
+                    'Please check your email and enter the code.')
+                return redirect('register_step2')
+            else:
+                messages.error(request, 
+                    'Failed to send verification email. Please try again.')
+    else:
+        form = EmailRegistrationForm()
+    
+    return render(request, 'chat/register_step1.html', {'form': form})
+
+def register_step2(request):
+    """Step 2: Verify OTP and create account"""
+    if 'otp_id' not in request.session or 'registration_data' not in request.session:
+        messages.error(request, 'Registration session expired. Please start again.')
+        return redirect('register_step1')
+    
+    try:
+        otp = OTPVerification.objects.get(id=request.session['otp_id'])
+        if otp.is_expired():
+            messages.error(request, 'Verification code has expired. Please request a new one.')
+            return redirect('register_step1')
+    except OTPVerification.DoesNotExist:
+        messages.error(request, 'Invalid verification session. Please start again.')
+        return redirect('register_step1')
+    
+    if request.method == 'POST':
+        form = OTPVerificationForm(request.POST, otp_verification=otp)
+        if form.is_valid():
+            # Create user account
+            reg_data = request.session['registration_data']
+            user = User.objects.create_user(
+                username=reg_data['username'],
+                email=reg_data['email'],
+                first_name=reg_data['first_name'],
+                last_name=reg_data['last_name'],
+                password=reg_data['password']
+            )
+            
+            # Create user profile
+            UserProfile.objects.get_or_create(user=user)
+            
+            # Clean up session
+            del request.session['otp_id']
+            del request.session['registration_data']
+            
+            # Log the user in
+            login(request, user)
+            
+            messages.success(request, 
+                'Account created successfully! Welcome to ChatApp!')
+            return redirect('dashboard')
+    else:
+        form = OTPVerificationForm()
+    
+    context = {
+        'form': form,
+        'email': otp.email,
+        'otp_id': str(otp.id),
+        'resend_form': ResendOTPForm(initial={
+            'email': otp.email,
+            'otp_type': 'registration'
+        })
+    }
+    
+    return render(request, 'chat/register_step2.html', context)
+
+# Password Reset Views
+def password_reset_request(request):
+    """Request password reset - send OTP to email"""
+    if request.method == 'POST':
+        form = PasswordResetRequestForm(request.POST)
+        if form.is_valid():
+            user = form.user
+            
+            # Create OTP verification
+            otp = OTPVerification.create_otp(
+                email=user.email,
+                otp_type='password_reset',
+                user=user
+            )
+            
+            if otp:
+                # Create password reset request
+                reset_request = PasswordResetRequest.objects.create(
+                    user=user,
+                    otp_verification=otp,
+                    ip_address=get_client_ip(request),
+                    user_agent=request.META.get('HTTP_USER_AGENT', '')
+                )
+                
+                request.session['reset_request_id'] = str(reset_request.id)
+                messages.success(request, 
+                    f'Password reset code sent to {user.email}. '
+                    'Please check your email and enter the code.')
+                return redirect('password_reset_verify')
+            else:
+                messages.error(request, 
+                    'Failed to send reset email. Please try again.')
+    else:
+        form = PasswordResetRequestForm()
+    
+    return render(request, 'chat/password_reset_request.html', {'form': form})
+
+def password_reset_verify(request):
+    """Verify OTP for password reset"""
+    if 'reset_request_id' not in request.session:
+        messages.error(request, 'Password reset session expired. Please start again.')
+        return redirect('password_reset_request')
+    
+    try:
+        reset_request = PasswordResetRequest.objects.get(
+            id=request.session['reset_request_id']
+        )
+        if reset_request.is_expired() or reset_request.is_used:
+            messages.error(request, 'Password reset request has expired. Please start again.')
+            return redirect('password_reset_request')
+    except PasswordResetRequest.DoesNotExist:
+        messages.error(request, 'Invalid password reset request. Please start again.')
+        return redirect('password_reset_request')
+    
+    otp = reset_request.otp_verification
+    
+    if request.method == 'POST':
+        form = OTPVerificationForm(request.POST, otp_verification=otp)
+        if form.is_valid():
+            request.session['otp_verified'] = True
+            return redirect('password_reset_confirm')
+    else:
+        form = OTPVerificationForm()
+    
+    context = {
+        'form': form,
+        'email': otp.email,
+        'otp_id': str(otp.id),
+        'resend_form': ResendOTPForm(initial={
+            'email': otp.email,
+            'otp_type': 'password_reset'
+        })
+    }
+    
+    return render(request, 'chat/password_reset_verify.html', context)
+
+def password_reset_confirm(request):
+    """Set new password after OTP verification"""
+    if ('reset_request_id' not in request.session or 
+        'otp_verified' not in request.session):
+        messages.error(request, 'Password reset session expired. Please start again.')
+        return redirect('password_reset_request')
+    
+    try:
+        reset_request = PasswordResetRequest.objects.get(
+            id=request.session['reset_request_id']
+        )
+        if reset_request.is_used:
+            messages.error(request, 'This password reset has already been used.')
+            return redirect('login')
+    except PasswordResetRequest.DoesNotExist:
+        messages.error(request, 'Invalid password reset request.')
+        return redirect('password_reset_request')
+    
+    user = reset_request.user
+    
+    if request.method == 'POST':
+        form = PasswordResetConfirmForm(user, request.POST)
+        if form.is_valid():
+            form.save()
+            
+            # Mark reset request as used
+            reset_request.mark_as_used()
+            
+            # Clean up session
+            del request.session['reset_request_id']
+            del request.session['otp_verified']
+            
+            messages.success(request, 
+                'Password reset successful! You can now log in with your new password.')
+            return redirect('login')
+    else:
+        form = PasswordResetConfirmForm(user)
+    
+    context = {
+        'form': form,
+        'user': user
+    }
+    
+    return render(request, 'chat/password_reset_confirm.html', context)
+
+# AJAX Views
+@require_POST
+def resend_otp(request):
+    """Resend OTP code"""
+    try:
+        data = json.loads(request.body)
+        email = data.get('email')
+        otp_type = data.get('otp_type')
+        
+        if not email or not otp_type:
+            return JsonResponse({
+                'success': False,
+                'message': 'Missing required information'
+            })
+        
+        # Find user for password reset
+        user = None
+        temp_data = None
+        
+        if otp_type == 'password_reset':
+            try:
+                user = User.objects.get(email=email)
+            except User.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No account found with this email'
+                })
+        elif otp_type == 'registration':
+            # Get temp data from session
+            if 'registration_data' in request.session:
+                temp_data = request.session['registration_data']
+        
+        # Create new OTP
+        otp = OTPVerification.create_otp(
+            email=email,
+            otp_type=otp_type,
+            user=user,
+            temp_data=temp_data
+        )
+        
+        if otp:
+            # Update session with new OTP ID
+            request.session['otp_id'] = str(otp.id)
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'New verification code sent to {email}'
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': 'Failed to send verification email'
+            })
+    
+    except Exception as e:
+        logger.error(f"Error resending OTP: {e}")
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred while sending the verification code'
+        })
+
+@require_GET
+def check_otp_status(request):
+    """Check OTP verification status"""
+    otp_id = request.GET.get('otp_id')
+    if not otp_id:
+        return JsonResponse({'success': False, 'message': 'No OTP ID provided'})
+    
+    try:
+        otp = OTPVerification.objects.get(id=otp_id)
+        return JsonResponse({
+            'success': True,
+            'is_expired': otp.is_expired(),
+            'attempts_remaining': otp.max_attempts - otp.attempts,
+            'is_verified': otp.is_verified
+        })
+    except OTPVerification.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Invalid OTP'})
+
+# Enhanced login view with better error handling
+def new_login_view(request):
+    # Redirect if already logged in
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        
+        if not username or not password:
+            messages.error(request, 'Please enter both username and password.')
+            return render(request, 'chat/login.html')
+        
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            if user.is_active:
+                login(request, user)
+                
+                # Update user profile status
+                if hasattr(user, 'profile'):
+                    user.profile.online = True
+                    user.profile.save()
+                
+                # Redirect to next page or dashboard
+                next_page = request.GET.get('next', 'dashboard')
+                return redirect(next_page)
+            else:
+                messages.error(request, 'Your account has been deactivated.')
+        else:
+            messages.error(request, 'Invalid username or password.')
+    
+    return render(request, 'chat/new_login.html')
+
+# Clean up expired OTPs (call this periodically via management command)
+def cleanup_expired_otps():
+    """Clean up expired OTP verifications"""
+    expired_otps = OTPVerification.objects.filter(
+        expires_at__lt=timezone.now()
+    )
+    count = expired_otps.count()
+    expired_otps.delete()
+    return count

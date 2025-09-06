@@ -4,8 +4,8 @@ from . import views
 urlpatterns = [
     # Authentication URLs
     path('', views.dashboard, name='dashboard'),
-    path('register/', views.register_view, name='register'),
-    path('login/', views.login_view, name='login'),
+    # path('register/', views.register_view, name='register'),
+    # path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     
     # Profile URLs
@@ -45,5 +45,20 @@ urlpatterns = [
     # User search and invitation URLs
     path('search-users-invite/', views.search_users_for_invite, name='search_users_for_invite'),
     path('invite-users/', views.invite_users_to_room, name='invite_users_to_room'),
+
+    # Enhanced Authentication URLs with OTP
+    path('register/', views.register_step1, name='register_step1'),
+    path('register/verify/', views.register_step2, name='register_step2'),
+    path('login/', views.new_login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
+    
+    # Password Reset URLs
+    path('password-reset/', views.password_reset_request, name='password_reset_request'),
+    path('password-reset/verify/', views.password_reset_verify, name='password_reset_verify'),
+    path('password-reset/confirm/', views.password_reset_confirm, name='password_reset_confirm'),
+    
+    # AJAX URLs
+    path('api/resend-otp/', views.resend_otp, name='resend_otp'),
+    path('api/check-otp-status/', views.check_otp_status, name='check_otp_status'),
 ]
 

@@ -1,9 +1,14 @@
 from django.db import models
 from django.contrib.auth.models import User
 import uuid
-from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.db.models import Q
+import random
+import string
+from django.utils import timezone
+from datetime import timedelta
+from django.core.mail import send_mail
+from django.conf import settings
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
@@ -474,3 +479,192 @@ class RoomInvitation(models.Model):
     
     def __str__(self):
         return f"Invitation to {self.room.name} for {self.invited_user.username} ({self.status})"
+
+
+
+class OTPVerification(models.Model):
+    OTP_TYPES = [
+        ('registration', 'Registration'),
+        ('password_reset', 'Password Reset'),
+        ('email_verification', 'Email Verification'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField()
+    otp_code = models.CharField(max_length=6)
+    otp_type = models.CharField(max_length=20, choices=OTP_TYPES)
+    is_verified = models.BooleanField(default=False)
+    attempts = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=3)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    
+    # Store registration data temporarily for registration OTPs
+    temp_user_data = models.JSONField(null=True, blank=True, help_text="Temporary storage for registration data")
+    
+    class Meta:
+        verbose_name = "OTP Verification"
+        verbose_name_plural = "OTP Verifications"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email', 'otp_type']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['expires_at']),
+        ]
+    
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            # OTP expires in 10 minutes
+            self.expires_at = timezone.now() + timedelta(minutes=10)
+        if not self.otp_code:
+            self.generate_otp()
+        super().save(*args, **kwargs)
+    
+    def generate_otp(self):
+        """Generate a 6-digit OTP code"""
+        self.otp_code = ''.join(random.choices(string.digits, k=6))
+        return self.otp_code
+    
+    def is_expired(self):
+        """Check if OTP has expired"""
+        return timezone.now() > self.expires_at
+    
+    def is_max_attempts_reached(self):
+        """Check if maximum attempts reached"""
+        return self.attempts >= self.max_attempts
+    
+    def verify_otp(self, provided_otp):
+        """Verify the provided OTP"""
+        if self.is_expired():
+            return False, "OTP has expired"
+        
+        if self.is_max_attempts_reached():
+            return False, "Maximum attempts reached"
+        
+        if self.is_verified:
+            return False, "OTP already verified"
+        
+        self.attempts += 1
+        self.save()
+        
+        if self.otp_code == provided_otp:
+            self.is_verified = True
+            self.save()
+            return True, "OTP verified successfully"
+        
+        return False, f"Invalid OTP. {self.max_attempts - self.attempts} attempts remaining"
+    
+    def send_otp_email(self):
+        """Send OTP via email"""
+        subject_map = {
+            'registration': 'ChatApp - Email Verification Code',
+            'password_reset': 'ChatApp - Password Reset Code',
+            'email_verification': 'ChatApp - Email Verification Code',
+        }
+        
+        message_map = {
+            'registration': f'''
+Welcome to ChatApp!
+
+Your verification code is: {self.otp_code}
+
+This code will expire in 10 minutes. If you didn't request this code, please ignore this email.
+
+Best regards,
+ChatApp Team
+            ''',
+            'password_reset': f'''
+Password Reset Request
+
+Your password reset code is: {self.otp_code}
+
+This code will expire in 10 minutes. If you didn't request a password reset, please ignore this email.
+
+Best regards,
+ChatApp Team
+            ''',
+            'email_verification': f'''
+Email Verification
+
+Your email verification code is: {self.otp_code}
+
+This code will expire in 10 minutes.
+
+Best regards,
+ChatApp Team
+            '''
+        }
+        
+        subject = subject_map.get(self.otp_type, 'ChatApp - Verification Code')
+        message = message_map.get(self.otp_type, f'Your verification code is: {self.otp_code}')
+        
+        try:
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[self.email],
+                fail_silently=False,
+            )
+            return True
+        except Exception as e:
+            print(f"Failed to send email: {e}")
+            return False
+    
+    @classmethod
+    def create_otp(cls, email, otp_type, user=None, temp_data=None):
+        """Create a new OTP verification"""
+        # Invalidate existing OTPs for this email and type
+        cls.objects.filter(
+            email=email, 
+            otp_type=otp_type, 
+            is_verified=False
+        ).update(is_verified=True)  # Mark as used to prevent reuse
+        
+        otp = cls.objects.create(
+            email=email,
+            otp_type=otp_type,
+            user=user,
+            temp_user_data=temp_data
+        )
+        
+        # Send email
+        if otp.send_otp_email():
+            return otp
+        else:
+            otp.delete()  # Delete if email failed to send
+            return None
+    
+    def __str__(self):
+        return f"{self.email} - {self.otp_type} - {self.otp_code}"
+
+
+class PasswordResetRequest(models.Model):
+    """Track password reset requests for additional security"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    otp_verification = models.OneToOneField(OTPVerification, on_delete=models.CASCADE)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    
+    class Meta:
+        verbose_name = "Password Reset Request"
+        verbose_name_plural = "Password Reset Requests"
+        ordering = ['-created_at']
+    
+    def mark_as_used(self):
+        """Mark this reset request as used"""
+        self.is_used = True
+        self.used_at = timezone.now()
+        self.save()
+    
+    def is_expired(self):
+        """Check if the reset request has expired"""
+        return self.otp_verification.is_expired()
+    
+    def __str__(self):
+        return f"Password reset for {self.user.username}"
