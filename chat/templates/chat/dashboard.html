@@ -179,8 +179,7 @@
                             {% endif %}
                         </div>
                         <div>
-                            <h6 class="mb-1">{{
-                                friendship.from_user.user.get_full_name|default:friendship.from_user.user.username }}
+                            <h6 class="mb-1">{{ friendship.from_user.user.get_full_name|default:friendship.from_user.user.username }}
                             </h6>
                             <small class="text-muted">{{ friendship.created_at|timesince }} ago</small>
                         </div>
