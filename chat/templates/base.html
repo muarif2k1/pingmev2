@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -106,9 +107,11 @@
             0% {
                 box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
             }
+
             70% {
                 box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
             }
+
             100% {
                 box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
             }
@@ -152,12 +155,18 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
+
 <body>
     {% if user.is_authenticated %}
     <nav class="navbar navbar-expand-lg navbar-custom fixed-top">
@@ -165,11 +174,11 @@
             <a class="navbar-brand" href="{% url 'dashboard' %}">
                 <i class="fas fa-comments"></i> PingMe
             </a>
-            
+
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
+
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
@@ -192,29 +201,37 @@
                             <i class="fas fa-search"></i> Search Users
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'about' %}">
+                            <i class="fas fa-info-circle"></i> About
+                        </a>
+                    </li>
                 </ul>
-                
+
                 <ul class="navbar-nav">
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button"
+                            data-bs-toggle="dropdown">
                             {% if user.profile.profile_photo %}
-                                <img src="{{ user.profile.profile_photo.url }}" class="user-avatar me-2" alt="Avatar">
+                            <img src="{{ user.profile.profile_photo.url }}" class="user-avatar me-2" alt="Avatar">
                             {% else %}
-                                <i class="fas fa-user-circle fs-4 me-2"></i>
+                            <i class="fas fa-user-circle fs-4 me-2"></i>
                             {% endif %}
                             {{ user.username }}
                             {% if user.profile.online %}
-                                <span class="online-indicator ms-2"></span>
+                            <span class="online-indicator ms-2"></span>
                             {% endif %}
                         </a>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="{% url 'profile' %}">
-                                <i class="fas fa-user"></i> Profile
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
+                                    <i class="fas fa-user"></i> Profile
+                                </a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
                             <li><a class="dropdown-item" href="{% url 'logout' %}">
-                                <i class="fas fa-sign-out-alt"></i> Logout
-                            </a></li>
+                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                </a></li>
                         </ul>
                     </li>
                 </ul>
@@ -227,16 +244,16 @@
         <div class="container">
             <!-- Messages -->
             {% if messages %}
-                <div class="row mb-4">
-                    <div class="col-12">
-                        {% for message in messages %}
-                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        {% endfor %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
+                    {% endfor %}
                 </div>
+            </div>
             {% endif %}
 
             {% block content %}{% endblock %}
@@ -262,7 +279,7 @@
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
-    
+
     <script>
         // Get Django data from JSON script tag
         const djangoData = JSON.parse(document.getElementById('django-data').textContent);
@@ -286,7 +303,7 @@
 
         // Set up CSRF token for all AJAX requests
         $.ajaxSetup({
-            beforeSend: function(xhr, settings) {
+            beforeSend: function (xhr, settings) {
                 if (!(/^http:.*/.test(settings.url) || /^https:.*/.test(settings.url))) {
                     xhr.setRequestHeader("X-CSRFToken", csrftoken);
                 }
@@ -295,14 +312,14 @@
 
         // Auto-refresh unread counts every 30 seconds
         if (djangoData.isAuthenticated) {
-            setInterval(function() {
-                $.get(djangoData.unreadCountsUrl, function(data) {
+            setInterval(function () {
+                $.get(djangoData.unreadCountsUrl, function (data) {
                     // Update badges with unread counts
                     Object.keys(data.private_chats).forEach(chatId => {
                         const badge = $(`.chat-badge[data-chat-id="${chatId}"]`);
                         badge.text(data.private_chats[chatId]).show();
                     });
-                    
+
                     Object.keys(data.rooms).forEach(roomId => {
                         const badge = $(`.room-badge[data-room-id="${roomId}"]`);
                         badge.text(data.rooms[roomId]).show();
@@ -314,4 +331,5 @@
 
     {% block extra_js %}{% endblock %}
 </body>
+
 </html>

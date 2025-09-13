@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block title %}My Support Tickets - PingMe{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card card-custom">
+            <div class="card-header bg-transparent border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0">
+                        <i class="fas fa-ticket-alt text-primary"></i>
+                        My Support Tickets
+                    </h2>
+                    <a href="{% url 'about' %}#support" class="btn btn-custom">
+                        <i class="fas fa-plus me-2"></i>New Ticket
+                    </a>
+                </div>
+                <p class="text-muted mb-0">Track your support requests and their status</p>
+            </div>
+            
+            <div class="card-body">
+                {% if tickets %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Ticket #</th>
+                                    <th>Subject</th>
+                                    <th>Type</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in tickets %}
+                                <tr>
+                                    <td>
+                                        <strong class="text-primary">{{ ticket.get_ticket_number }}</strong>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold">{{ ticket.subject }}</div>
+                                        <small class="text-muted">{{ ticket.message|truncatechars:50 }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ ticket.get_ticket_type_display }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ ticket.get_priority_color }}">
+                                            {{ ticket.get_priority_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ ticket.get_status_color }}">
+                                            {{ ticket.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ ticket.created_at|date:"M d, Y" }}<br>
+                                            {{ ticket.created_at|time:"h:i A" }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ ticket.updated_at|date:"M d, Y" }}<br>
+                                            {{ ticket.updated_at|time:"h:i A" }}
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">No Support Tickets</h4>
+                        <p class="text-muted mb-4">You haven't submitted any support tickets yet.</p>
+                        <a href="{% url 'about' %}#support" class="btn btn-custom">
+                            <i class="fas fa-plus me-2"></i>Submit Your First Ticket
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if tickets %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card card-custom">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-info-circle text-info"></i>
+                    Ticket Status Guide
+                </h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <span class="badge bg-primary me-2">Open</span>
+                                Your ticket has been received and is waiting for review
+                            </li>
+                            <li class="mb-2">
+                                <span class="badge bg-warning me-2">In Progress</span>
+                                Our team is actively working on your request
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <span class="badge bg-success me-2">Resolved</span>
+                                Your issue has been resolved
+                            </li>
+                            <li class="mb-2">
+                                <span class="badge bg-secondary me-2">Closed</span>
+                                The ticket has been closed
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

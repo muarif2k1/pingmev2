@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm, SetPasswordForm
 from django.core.exceptions import ValidationError
-from .models import UserProfile, Room, Message, RoomInvitation, OTPVerification, PasswordResetRequest
+from .models import UserProfile, Room, Message, RoomInvitation, OTPVerification, PasswordResetRequest, SupportTicket
 import os
 import re
 
@@ -446,3 +446,55 @@ class ContactForm(forms.Form):
             'rows': 5
         })
     )
+
+
+class SupportTicketForm(forms.ModelForm):
+    class Meta:
+        model = SupportTicket
+        fields = ['name', 'email', 'ticket_type', 'subject', 'message', 'priority']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Your full name'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'your.email@example.com'
+            }),
+            'ticket_type': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'subject': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Brief description of your issue'
+            }),
+            'message': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 6,
+                'placeholder': 'Please describe your issue or query in detail...'
+            }),
+            'priority': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Pre-fill name and email if user is authenticated
+        if self.user and self.user.is_authenticated:
+            self.fields['name'].initial = self.user.get_full_name() or self.user.username
+            self.fields['email'].initial = self.user.email
+    
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if not email:
+            raise ValidationError("Email address is required.")
+        return email
+    
+    def clean_message(self):
+        message = self.cleaned_data.get('message')
+        if len(message.strip()) < 10:
+            raise ValidationError("Please provide more details about your issue (at least 10 characters).")
+        return message.strip()

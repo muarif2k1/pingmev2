@@ -11,8 +11,8 @@ from django.db.models import Q, Count
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from django.urls import reverse
-from .models import UserProfile, Friendship, PrivateChat, Room, Message, RoomParticipant, ChatParticipant, RoomInvitation, OTPVerification, PasswordResetRequest
-from .forms import UserRegistrationForm, UserProfileForm, RoomCreationForm, MessageForm, EmailRegistrationForm, OTPVerificationForm, PasswordResetRequestForm, PasswordResetConfirmForm, ResendOTPForm
+from .models import UserProfile, Friendship, PrivateChat, Room, Message, RoomParticipant, ChatParticipant, RoomInvitation, OTPVerification, PasswordResetRequest, SupportTicket
+from .forms import UserRegistrationForm, UserProfileForm, RoomCreationForm, MessageForm, EmailRegistrationForm, OTPVerificationForm, PasswordResetRequestForm, PasswordResetConfirmForm, ResendOTPForm, SupportTicketForm
 from django.http import FileResponse, Http404
 from django.conf import settings
 from datetime import datetime, date, timedelta
@@ -1439,3 +1439,150 @@ def cleanup_expired_otps():
     count = expired_otps.count()
     expired_otps.delete()
     return count
+
+
+
+@login_required
+def about_view(request):
+    """About page with support form"""
+    if request.method == 'POST':
+        form = SupportTicketForm(request.POST, user=request.user)
+        if form.is_valid():
+            ticket = form.save(commit=False)
+            
+            # Set user if authenticated
+            if request.user.is_authenticated:
+                ticket.user = request.user
+            
+            # Set system information
+            ticket.user_agent = request.META.get('HTTP_USER_AGENT', '')
+            ticket.ip_address = get_client_ip(request)
+            ticket.page_url = request.build_absolute_uri()
+            
+            ticket.save()
+            
+            messages.success(request, 
+                f'Your support ticket {ticket.get_ticket_number()} has been submitted successfully! '
+                'We\'ll get back to you via email within 24-48 hours.')
+            
+            return redirect('about')
+    else:
+        form = SupportTicketForm(user=request.user)
+    
+    context = {
+        'form': form
+    }
+    
+    return render(request, 'chat/about.html', context)
+
+
+def send_support_ticket_notification(ticket):
+    """Send email notification for new support ticket"""
+    from django.core.mail import send_mail
+    from django.conf import settings
+    
+    subject = f"New Support Ticket: {ticket.get_ticket_number()}"
+    
+    message = f"""
+A new support ticket has been submitted:
+
+Ticket Number: {ticket.get_ticket_number()}
+Name: {ticket.name}
+Email: {ticket.email}
+Type: {ticket.get_ticket_type_display()}
+Priority: {ticket.get_priority_display()}
+Subject: {ticket.subject}
+
+Message:
+{ticket.message}
+
+Visit the admin panel to respond to this ticket.
+    """
+    
+    try:
+        # Send to admin
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[settings.DEFAULT_FROM_EMAIL],  # or specific admin emails
+            fail_silently=True,
+        )
+        
+        # Send confirmation to user
+        user_subject = f"Support Ticket Received: {ticket.get_ticket_number()}"
+        user_message = f"""
+Dear {ticket.name},
+
+Thank you for contacting PingMe support. We have received your support ticket:
+
+Ticket Number: {ticket.get_ticket_number()}
+Subject: {ticket.subject}
+Priority: {ticket.get_priority_display()}
+
+We will review your request and respond within 24-48 hours.
+
+Best regards,
+PingMe Support Team
+        """
+        
+        send_mail(
+            subject=user_subject,
+            message=user_message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[ticket.email],
+            fail_silently=True,
+        )
+        
+    except Exception as e:
+        print(f"Failed to send support ticket notification: {e}")
+
+@login_required
+# Update the about_view to include email notifications:
+def about_view_with_email(request):
+    """About page with support form and email notifications"""
+    if request.method == 'POST':
+        form = SupportTicketForm(request.POST, user=request.user)
+        if form.is_valid():
+            ticket = form.save(commit=False)
+            
+            if request.user.is_authenticated:
+                ticket.user = request.user
+            
+            ticket.user_agent = request.META.get('HTTP_USER_AGENT', '')
+            ticket.ip_address = get_client_ip(request)
+            ticket.page_url = request.build_absolute_uri()
+            
+            ticket.save()
+            
+            # Send email notifications
+            send_support_ticket_notification(ticket)
+            
+            messages.success(request, 
+                f'Your support ticket {ticket.get_ticket_number()} has been submitted successfully! '
+                'We\'ll get back to you via email within 24-48 hours.')
+            
+            return redirect('about')
+    else:
+        form = SupportTicketForm(user=request.user)
+    
+    context = {'form': form}
+    return render(request, 'chat/about.html', context)
+
+
+def support_tickets_view(request):
+    """View user's support tickets"""
+    if not request.user.is_authenticated:
+        messages.error(request, 'Please log in to view your support tickets.')
+        return redirect('login')
+    
+    tickets = SupportTicket.objects.filter(user=request.user).order_by('-created_at')
+    
+    context = {
+        'tickets': tickets
+    }
+    
+    return render(request, 'chat/support_tickets.html', context)
+
+
+

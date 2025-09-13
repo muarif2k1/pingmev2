@@ -5,7 +5,7 @@ from django.utils import timezone
 from django.db.models import Count, Q
 from .models import (
     UserProfile, Friendship, PrivateChat, Room, Message,
-    MessageReadReceipt, RoomParticipant, ChatParticipant, RoomInvitation
+    MessageReadReceipt, RoomParticipant, ChatParticipant, RoomInvitation, SupportTicket
 )
 
 @admin.register(UserProfile)
@@ -207,6 +207,53 @@ class ChatParticipantAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('user', 'private_chat__user1', 'private_chat__user2')
 
+
+@admin.register(SupportTicket)
+class SupportTicketAdmin(admin.ModelAdmin):
+    list_display = ['get_ticket_number', 'name', 'email', 'subject', 'ticket_type', 
+                    'priority', 'status', 'created_at']
+    list_filter = ['status', 'priority', 'ticket_type', 'created_at']
+    search_fields = ['name', 'email', 'subject', 'message']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'user_agent', 'ip_address', 'page_url']
+    ordering = ['-created_at']
+    
+    fieldsets = (
+        ('Ticket Information', {
+            'fields': ('id', 'ticket_type', 'subject', 'priority', 'status')
+        }),
+        ('User Information', {
+            'fields': ('user', 'name', 'email')
+        }),
+        ('Message', {
+            'fields': ('message',)
+        }),
+        ('System Information', {
+            'fields': ('user_agent', 'ip_address', 'page_url'),
+            'classes': ('collapse',)
+        }),
+        ('Admin Fields', {
+            'fields': ('assigned_to', 'admin_notes', 'resolved_at'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    actions = ['mark_as_resolved', 'mark_as_in_progress']
+    
+    def mark_as_resolved(self, request, queryset):
+        updated = queryset.update(status='resolved', resolved_at=timezone.now())
+        self.message_user(request, f'{updated} tickets marked as resolved.')
+    mark_as_resolved.short_description = "Mark selected tickets as resolved"
+    
+    def mark_as_in_progress(self, request, queryset):
+        updated = queryset.update(status='in_progress')
+        self.message_user(request, f'{updated} tickets marked as in progress.')
+    mark_as_in_progress.short_description = "Mark selected tickets as in progress"
+
+
 @admin.register(RoomInvitation)
 class RoomInvitationAdmin(admin.ModelAdmin):
     list_display = ['room', 'invited_user', 'invited_by', 'status', 'is_expired_status', 'created_at', 'responded_at']
@@ -257,3 +304,4 @@ accept_pending_invitations.short_description = "Accept selected pending invitati
 # Add actions to respective admin classes
 MessageAdmin.actions = [mark_messages_as_deleted]
 RoomInvitationAdmin.actions = [accept_pending_invitations]
+

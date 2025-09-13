@@ -60,5 +60,8 @@ urlpatterns = [
     # AJAX URLs
     path('api/resend-otp/', views.resend_otp, name='resend_otp'),
     path('api/check-otp-status/', views.check_otp_status, name='check_otp_status'),
+
+    path('about/', views.about_view, name='about'),
+    path('support-tickets/', views.support_tickets_view, name='support_tickets'),
 ]
 

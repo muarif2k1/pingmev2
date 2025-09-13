@@ -668,3 +668,104 @@ class PasswordResetRequest(models.Model):
     
     def __str__(self):
         return f"Password reset for {self.user.username}"
+    
+
+
+class SupportTicket(models.Model):
+    TICKET_TYPES = [
+        ('general', 'General Inquiry'),
+        ('technical', 'Technical Issue'),
+        ('feature', 'Feature Request'),
+        ('bug', 'Bug Report'),
+        ('account', 'Account Issue'),
+        ('privacy', 'Privacy Concern'),
+        ('other', 'Other'),
+    ]
+    
+    PRIORITY_LEVELS = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('in_progress', 'In Progress'),
+        ('resolved', 'Resolved'),
+        ('closed', 'Closed'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # User information
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, 
+                           related_name='support_tickets')
+    name = models.CharField(max_length=100, help_text="Your full name")
+    email = models.EmailField(help_text="We'll use this to respond to you")
+    
+    # Ticket details
+    ticket_type = models.CharField(max_length=20, choices=TICKET_TYPES, default='general')
+    subject = models.CharField(max_length=200, help_text="Brief description of your issue")
+    message = models.TextField(help_text="Detailed description of your query or issue")
+    priority = models.CharField(max_length=10, choices=PRIORITY_LEVELS, default='medium')
+    
+    # System information (auto-populated)
+    user_agent = models.TextField(blank=True, help_text="Browser and device information")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    page_url = models.URLField(blank=True, help_text="Page where the issue occurred")
+    
+    # Status and tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Admin fields
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='assigned_tickets', limit_choices_to={'is_staff': True})
+    admin_notes = models.TextField(blank=True, help_text="Internal notes for administrators")
+    
+    class Meta:
+        verbose_name = "Support Ticket"
+        verbose_name_plural = "Support Tickets"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'priority']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['email']),
+            models.Index(fields=['ticket_type']),
+        ]
+    
+    def __str__(self):
+        return f"#{str(self.id)[:8]} - {self.subject} ({self.get_status_display()})"
+    
+    def get_ticket_number(self):
+        """Return a shortened ticket number for display"""
+        return f"#{str(self.id)[:8].upper()}"
+    
+    def mark_resolved(self):
+        """Mark ticket as resolved"""
+        self.status = 'resolved'
+        self.resolved_at = timezone.now()
+        self.save()
+    
+    def get_priority_color(self):
+        """Return Bootstrap color class for priority"""
+        colors = {
+            'low': 'success',
+            'medium': 'warning',
+            'high': 'danger',
+            'urgent': 'dark'
+        }
+        return colors.get(self.priority, 'secondary')
+    
+    def get_status_color(self):
+        """Return Bootstrap color class for status"""
+        colors = {
+            'open': 'primary',
+            'in_progress': 'warning',
+            'resolved': 'success',
+            'closed': 'secondary'
+        }
+        return colors.get(self.status, 'secondary')
